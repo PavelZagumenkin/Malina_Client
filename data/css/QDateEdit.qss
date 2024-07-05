@@ -1,0 +1,65 @@
+#qt_calendar_navigationbar {
+    background-color: rgb(228, 107, 134);
+}
+
+#qt_calendar_yearbutton, #qt_calendar_monthbutton {
+    background-color: rgb(228, 107, 134);
+    color: #ffffff;
+    padding-left: 7px;
+    padding-right: 7px;
+    font-size: 16px;
+}
+
+#qt_calendar_yearbutton:hover, #qt_calendar_monthbutton:hover {
+    background-color: rgba(225, 225, 225, 100);
+}
+
+#qt_calendar_yearbutton:pressed, #qt_calendar_monthbutton:pressed {
+    background-color: rgba(235, 235, 235, 100);
+}
+
+#qt_calendar_prevmonth, #qt_calendar_nextmonth {
+    border: none;                     /* убрать границу */
+    color: #ffffff;
+    font-weight: bold;              /* шрифт полужирный    */
+    qproperty-icon: none;
+    background-color: transparent; /* Цвет фона прозрачный */
+    padding-left: 5px;
+    padding-right: 5px;
+    border-radius: 5px;
+}
+
+#qt_calendar_prevmonth {
+    qproperty-text: "<";
+}
+
+#qt_calendar_nextmonth {
+    qproperty-text: ">";
+}
+
+#qt_calendar_prevmonth:hover, #qt_calendar_nextmonth:hover {
+    background-color: rgba(225, 225, 225, 100);
+}
+
+#qt_calendar_prevmonth:pressed, #qt_calendar_nextmonth:pressed {
+    background-color: rgba(235, 235, 235, 100);
+}
+
+#qt_calendar_yearedit {
+    color: white;
+    font-weight: bold;
+    background: transparent;         /* Сделать фон окна ввода прозрачным */
+}
+
+#qt_calendar_calendarview {
+    selection-background-color: rgb(228, 107, 134);
+    color: rgb(113, 126, 149);
+}
+
+#dateEdit_startDay {
+    padding-left: 10px;
+}
+
+#dateEdit_endDay {
+    padding-left: 10px;
+}

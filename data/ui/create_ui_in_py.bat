@@ -1,0 +1,15 @@
+@REM pyuic6 -x authorization.ui -o authorization.py
+@REM pyuic6 -x sections.ui -o sections.py
+@REM pyuic6 -x logistics.ui -o logistics.py
+@REM pyuic6 -x control.ui -o control.py
+@REM pyuic6 -x mini_table_window.ui -o mini_table_window.py
+@REM pyuic6 -x pie.ui -o pie.py
+@REM pyuic6 -x cake.ui -o cake.py
+@REM pyuic6 -x filling.ui -o filling.py
+@REM pyuic6 -x bakeryTables.ui -o bakeryTables.py
+@REM pyuic6 -x autoorders.ui -o autoorders.py
+@REM pyuic6 -x bakery.ui -o bakery.py
+@REM pyuic6 -x autozakaz_table.ui -o autozakaz_table.py
+@REM pyuic6 -x create_tp.ui -o create_tp.py
+@REM pyuic6 -x production.ui -o production.py
+@REM pyuic6 -x nomenklatura.ui -o nomenklatura.py

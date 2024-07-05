@@ -1,0 +1,30 @@
+#line_type_konditerskoi, #line_role #line_type, #line_yes_no{
+    padding-left: 15px;
+    border-bottom: 1px solid #000000;
+    border-top: 1px solid #ECECEC;
+    border-left: 1px solid #ECECEC;
+    border-right: 1px solid #ECECEC;
+}
+
+#line_type_konditerskoi::drop-down, #line_role::drop-down, #line_type::drop-down, #line_yes_no::drop-down{
+    border: none;
+}
+
+#line_type_konditerskoi::down-arrow, #line_role::down-arrow, #line_type::down-arrow, #line_yes_no::down-arrow{
+    image: url(data/images/down-chevron.ico);
+    width: 12px;
+    height: 12px;
+    margin-right: 15px;
+}
+
+#line_type_konditerskoi::on, #line_role::on, line_type::on, #line_yes_no::on{
+    border: 2px solid #c2dbfe;
+}
+
+#line_type_konditerskoi QListView, #line_role QListView, #line_type QListView, #line_yes_no QListView{
+    border: 1px solid rgba(0, 0, 0, 10%);
+    padding: 5px;
+    padding-left: 10px;
+    background-color: #fff;
+    outline: 0px;
+}
