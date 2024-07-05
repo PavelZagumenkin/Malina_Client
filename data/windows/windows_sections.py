@@ -2,10 +2,10 @@ from PyQt6 import QtWidgets, QtGui
 from data.ui.sections import Ui_WindowSections
 from data.active_session import Session
 import data.windows.windows_authorization
-import data.windows.windows_control
-import data.windows.windows_logistics
-import data.windows.windows_production
-from data.requests.db_requests import Database
+# import data.windows.windows_control
+# import data.windows.windows_logistics
+# import data.windows.windows_production
+# from data.requests.db_requests import Database
 from data.signals import Signals
 import datetime
 
@@ -17,23 +17,23 @@ class WindowSections(QtWidgets.QMainWindow):
         self.ui = Ui_WindowSections()
         self.ui.setupUi(self)
         self.signals = Signals()
-        self.database = Database()
-        self.session = Session.get_instance()  # Получение экземпляра класса Session
-        role = self.session.get_role()  # Получение роли пользователя из экземпляра класса Session
-        if role == 'operator':
-            self.ui.btn_logistics.setEnabled(True)
-        elif role == 'logist':
-            self.ui.btn_logistics.setEnabled(True)
-        elif role == 'supervisor':
-            self.ui.btn_trade.setEnabled(True)
-        elif role == 'manager':
-            self.ui.btn_office.setEnabled(True)
-        elif role == 'superadmin':
-            self.ui.btn_logistics.setEnabled(True)
-            self.ui.btn_trade.setEnabled(True)
-            self.ui.btn_production.setEnabled(True)
-            self.ui.btn_office.setEnabled(True)
-            self.ui.btn_control.setEnabled(True)
+        # self.database = Database()
+        # self.session = Session.get_instance()  # Получение экземпляра класса Session
+        # role = self.session.get_role()  # Получение роли пользователя из экземпляра класса Session
+        # if role == 'operator':
+        #     self.ui.btn_logistics.setEnabled(True)
+        # elif role == 'logist':
+        #     self.ui.btn_logistics.setEnabled(True)
+        # elif role == 'supervisor':
+        #     self.ui.btn_trade.setEnabled(True)
+        # elif role == 'manager':
+        #     self.ui.btn_office.setEnabled(True)
+        # elif role == 'superadmin':
+        #     self.ui.btn_logistics.setEnabled(True)
+        #     self.ui.btn_trade.setEnabled(True)
+        #     self.ui.btn_production.setEnabled(True)
+        #     self.ui.btn_office.setEnabled(True)
+        #     self.ui.btn_control.setEnabled(True)
         self.ui.btn_exit.clicked.connect(self.logout)
         self.ui.btn_logistics.clicked.connect(self.show_logistics)
         self.ui.btn_control.clicked.connect(self.show_control)
