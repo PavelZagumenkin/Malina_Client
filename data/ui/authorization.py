@@ -150,7 +150,7 @@ class Ui_WindowAuthorization(object):
         self.lable_suppot_text.setText(_translate("WindowAuthorization", "По всем вопросам работы программы \n"
 " обращаться в Отдел построения"))
         self.label_version_text.setText(_translate("WindowAuthorization", "Версия:"))
-        self.label_version_number.setText(_translate("WindowAuthorization", "0.9"))
+        self.label_version_number.setText(_translate("WindowAuthorization", "1.0"))
 
 
 if __name__ == "__main__":
