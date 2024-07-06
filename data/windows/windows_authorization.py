@@ -56,23 +56,30 @@ class WindowAuthorization(QtWidgets.QMainWindow):
         self.dialogBox_need_update.buttonClicked.connect(self.upload_file_update)
         self.dialogBox_need_update.exec()
 
-
     def upload_file_update(self, button):
         if button.text() == "OK":
             self.progress_bar.show()
-            url = 'http://localhost:5000/update'  # URL на сервере для загрузки обновления
+            url = 'http://localhost:5000/get_update'  # URL для получения обновления
             file_name = 'Malina64_Setup.exe'
             try:
-                with open(file_name, 'rb') as file:
-                    files = {'file': (file_name, file, 'application/octet-stream')}
-                    response = requests.post(url, files=files)
-                    if response.status_code == 200:
-                        print('\nФайл обновлений успешно загружен на сервер.')
-                        self.start_update(file_name)
-                    else:
-                        self.signals.failed_signal.emit('Ошибка при загрузке файла на сервер.')
+                response = requests.get(url, stream=True)
+                total_size = int(response.headers.get('content-length', 0))
+                chunk_size = 5242880
+                downloaded_size = 0
+                with open(file_name, 'wb') as file:
+                    for data in response.iter_content(chunk_size=chunk_size):
+                        file.write(data)
+                        downloaded_size += len(data)
+                        progress = int((downloaded_size / total_size) * 100)
+                        self.progress_bar.setValue(progress)
+                if total_size > 0 and downloaded_size == total_size:
+                    print('\nФайл обновлений успешно скачан.')
+                else:
+                    self.signals.failed_signal.emit(f'\nОшибка при скачивании файла. Загружено {downloaded_size / 1024:.2f} КБ из {total_size / 1024:.2f} КБ')
+                self.progress_bar.hide()
+                self.start_update(file_name)
             except Exception as e:
-                self.signals.failed_signal.emit(f'Ошибка при считывании файла: {str(e)}')
+                self.signals.failed_signal.emit(f'Ошибка при скачивании файла: {str(e)}')
                 self.progress_bar.hide()
         else:
             sys.exit()
