@@ -3,10 +3,8 @@ from data.ui.control import Ui_WindowControl
 import data.windows.windows_sections
 import data.windows.windows_usersControl
 import data.windows.windows_logsView
-from data.requests.db_requests import Database
 from data.signals import Signals
 from data.active_session import Session
-import datetime
 
 class WindowControl(QtWidgets.QMainWindow):
     def __init__(self):
@@ -14,7 +12,6 @@ class WindowControl(QtWidgets.QMainWindow):
         self.ui = Ui_WindowControl()
         self.ui.setupUi(self)
         self.signals = Signals()
-        self.database = Database()
         self.session = Session.get_instance()  # Получение экземпляра класса Session
         self.ui.btn_back.clicked.connect(self.show_windowSection)
         self.ui.btn_control_users.clicked.connect(self.show_windowUserControl)
@@ -65,13 +62,5 @@ class WindowControl(QtWidgets.QMainWindow):
 
     def closeEvent(self, event):
         if event.spontaneous():
-            username = self.session.get_username()  # Получение имени пользователя из экземпляра класса Session
-            logs_result = self.database.add_log(datetime.datetime.now().date(), datetime.datetime.now().time(),
-                                            f"Пользователь {username} вышел из системы.")
-            if "Лог записан" in logs_result:
-                self.signals.success_signal.emit(logs_result)
-            elif 'Ошибка работы' in logs_result:
-                self.signals.error_DB_signal.emit(logs_result)
-            else:
-                self.signals.failed_signal.emit(logs_result)
+            self.logs.add_log(f"Пользователь {self.session.get_username()} вышел из системы.")
         event.accept()

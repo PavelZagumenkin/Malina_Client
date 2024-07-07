@@ -2,7 +2,6 @@ from PyQt6 import QtWidgets, QtGui
 import data.windows.windows_production
 import data.windows.windows_dishes
 from data.ui.nomenklatura import Ui_WindowNomenklatura
-from data.requests.db_requests import Database
 import datetime
 from data.active_session import Session
 from data.signals import Signals
@@ -14,7 +13,6 @@ class WindowNomenklatura(QtWidgets.QMainWindow):
         self.ui = Ui_WindowNomenklatura()
         self.ui.setupUi(self)
         self.signals = Signals()
-        self.database = Database()
         self.session = Session.get_instance()  # Получение экземпляра класса Session
         icon = QtGui.QIcon()
         icon.addPixmap(QtGui.QPixmap("data/images/icon.ico"), QtGui.QIcon.Mode.Normal, QtGui.QIcon.State.Off)

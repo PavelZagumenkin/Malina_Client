@@ -7,8 +7,6 @@ from math import ceil
 from PyQt6 import QtCore, QtWidgets, QtGui
 from PyQt6.QtWidgets import QFileDialog, QMessageBox
 from data.ui.bakery import Ui_WindowBakery
-from data.requests.db_requests import Database
-from data.requests.queries import Queries
 from data.signals import Signals
 from data.active_session import Session
 
@@ -32,7 +30,6 @@ class WindowBakery(QtWidgets.QMainWindow):
         self.ui = Ui_WindowBakery()
         self.ui.setupUi(self)
         self.signals = Signals()
-        self.database = Database()
         self.session = Session.get_instance()  # Получение экземпляра класса Session
         icon = QtGui.QIcon()
         icon.addPixmap(QtGui.QPixmap("data/images/icon.png"), QtGui.QIcon.Mode.Normal, QtGui.QIcon.State.Off)

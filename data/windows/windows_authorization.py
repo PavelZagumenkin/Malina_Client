@@ -4,11 +4,13 @@ from PyQt6.QtCore import Qt
 from data.ui.authorization import Ui_WindowAuthorization
 from data.signals import Signals
 from data.active_session import Session
+from data.add_logs import add_log
 import data.windows.windows_sections
 import datetime
 import requests
 import subprocess
 import sys
+
 
 class WindowAuthorization(QtWidgets.QMainWindow):
     def __init__(self):
@@ -37,18 +39,27 @@ class WindowAuthorization(QtWidgets.QMainWindow):
 
     def check_update(self):
         version = self.ui.label_version_number.text()
-        response = requests.post('http://localhost:5000/check_version', json={"version": version})
-        if response.status_code == 200:
+        try:
+            response = requests.post('http://localhost:5000/check_version', json={"version": version})
+            response.raise_for_status()  # Проверка, успешен ли запрос
             data = response.json()
             result = data['result']
             actual_version = data['actual_version']
             if "Необходимо обновить приложение до версии" in result:
                 self.dialog_need_update(actual_version)
+        except requests.exceptions.ConnectionError:
+            self.signals.failed_signal.emit('Сервер не доступен!')
+        except requests.exceptions.HTTPError as err:
+            self.signals.failed_signal.emit(f'HTTP ошибка: {err}')
+        except requests.exceptions.RequestException as err:
+            self.signals.failed_signal.emit(f'Ошибка запроса: {err}')
+
 
     def dialog_need_update(self, actual_version):
         self.setEnabled(False)
         self.dialogBox_need_update = QMessageBox()
-        self.dialogBox_need_update.setText(f"Требуется обновление клиента программы до версии {actual_version}. Выполнить обновление сейчас?")
+        self.dialogBox_need_update.setText(f"Требуется обновление клиента программы до версии {actual_version}. "
+                                           f"Выполнить обновление сейчас?")
         self.dialogBox_need_update.setWindowIcon(QtGui.QIcon("data/images/icon.png"))
         self.dialogBox_need_update.setWindowTitle('Вышла новая версия программы')
         self.dialogBox_need_update.setIcon(QMessageBox.Icon.Critical)
@@ -67,15 +78,16 @@ class WindowAuthorization(QtWidgets.QMainWindow):
                 chunk_size = 5242880
                 downloaded_size = 0
                 with open(file_name, 'wb') as file:
-                    for data in response.iter_content(chunk_size=chunk_size):
-                        file.write(data)
-                        downloaded_size += len(data)
+                    for data_size in response.iter_content(chunk_size=chunk_size):
+                        file.write(data_size)
+                        downloaded_size += len(data_size)
                         progress = int((downloaded_size / total_size) * 100)
                         self.progress_bar.setValue(progress)
                 if total_size > 0 and downloaded_size == total_size:
                     print('\nФайл обновлений успешно скачан.')
                 else:
-                    self.signals.failed_signal.emit(f'\nОшибка при скачивании файла. Загружено {downloaded_size / 1024:.2f} КБ из {total_size / 1024:.2f} КБ')
+                    self.signals.failed_signal.emit(
+                        f'\nОшибка при скачивании файла. Загружено {downloaded_size / 1024:.2f} КБ из {total_size / 1024:.2f} КБ')
                 self.progress_bar.hide()
                 self.start_update(file_name)
             except Exception as e:
@@ -94,59 +106,73 @@ class WindowAuthorization(QtWidgets.QMainWindow):
     def login(self):
         username = self.ui.line_login.text()
         password = self.ui.line_password.text()
-        response = requests.post('http://localhost:5000/login', json={"username": username, "password": password})
-        if response.status_code == 200:
-            data = response.json()
-            result = data['result']
-            role = data['role']
+        try:
+            response = requests.post('http://localhost:5000/login', json={"username": username, "password": password})
+            response.raise_for_status()  # Проверка, успешен ли запрос
+            data_otvet = response.json()
+            result = data_otvet['result']
+            role = data_otvet['role']
             if "Авторизация успешна" in result:
-                logs_result = self.add_log(f"Пользователь {username} выполнил вход в систему.")
+                logs_result = add_log(f"Пользователь {username} выполнил вход в систему.")
                 if "Лог записан" in logs_result:
                     self.session.set_username_role_date(username, role, datetime.datetime.now().strftime('%Y.%m.%d'))
                     self.signals.success_signal.emit(result)
                 else:
                     self.signals.failed_signal.emit(logs_result)
             else:
-                self.signals.failed_signal.emit(result)
-        else:
-            self.signals.failed_signal.emit('Ошибка при выполнении запроса на сервере.')
-
-    def add_log(self, log):
-        date = datetime.datetime.now().date()
-        time = datetime.datetime.now().time()
-        response = requests.post('http://localhost:5000/add_log', json={"date": str(date), "time": str(time), "log": log})
-        if response.status_code == 200:
-            data = response.json()
-            return data['result']
-        else:
-            return 'Ошибка при записи лога на сервере.'
+                if len(username) == 0:
+                    self.signals.failed_signal.emit("Введите логин")
+                elif len(password) == 0:
+                    self.signals.failed_signal.emit("Введите пароль")
+                else:
+                    if 'Ошибка работы' in result:
+                        self.signals.error_DB_signal.emit(result)
+                    else:
+                        self.signals.failed_signal.emit(result)
+        except requests.exceptions.ConnectionError:
+            self.signals.failed_signal.emit('Сервер не доступен!')
+        except requests.exceptions.HTTPError as err:
+            self.signals.failed_signal.emit(f'HTTP ошибка: {err}')
+        except requests.exceptions.RequestException as err:
+            self.signals.failed_signal.emit(f'Ошибка запроса: {err}')
 
     def get_users_role(self):
-        response = requests.get('http://localhost:5000/get_users_role')
-        if response.status_code == 200:
-            data = response.json()
-            return data['result']
-        else:
-            return 'Ошибка при получении ролей пользователей с сервера.'
+        try:
+            response = requests.get('http://localhost:5000/get_users_role')
+            response.raise_for_status()
+            data_otvet = response.json()
+            return data_otvet['result']
+        except requests.exceptions.ConnectionError:
+            self.signals.failed_signal.emit('Сервер не доступен!')
+        except requests.exceptions.HTTPError as err:
+            self.signals.failed_signal.emit(f'HTTP ошибка: {err}')
+        except requests.exceptions.RequestException as err:
+            self.signals.failed_signal.emit(f'Ошибка запроса: {err}')
 
     def count_row_in_DB_user_role(self):
-        response = requests.get('http://localhost:5000/count_row_in_DB_user_role')
-        if response.status_code == 200:
-            data = response.json()
-            return data['result']
-        else:
-            return 'Ошибка при получении количества строк в таблице пользователей с сервера.'
-
+        try:
+            response = requests.get('http://localhost:5000/count_row_in_DB_user_role')
+            response.raise_for_status()
+            data_otvet = response.json()
+            return data_otvet['result']
+        except requests.exceptions.ConnectionError:
+            self.signals.failed_signal.emit('Сервер не доступен!')
+        except requests.exceptions.HTTPError as err:
+            self.signals.failed_signal.emit(f'HTTP ошибка: {err}')
+        except requests.exceptions.RequestException as err:
+            self.signals.failed_signal.emit(f'Ошибка запроса: {err}')
 
     def show_success_message(self, message):
         if "Авторизация успешна" in message:
             self.show_windowSection()
 
-
     def show_error_message(self, message):
         if "Введите логин" in message or "Введите пароль" in message:
             self.ui.label_login_password.setText(message)
             self.ui.label_login_password.setStyleSheet('color: rgba(228, 107, 134, 1)')
+        elif "Сервер не доступен!" in message or "HTTP ошибка:" in message or "Ошибка запроса:" in message:
+            QtWidgets.QMessageBox.information(self, "Ошибка", message)
+            sys.exit()
         else:
             # Отображаем сообщение об ошибке
             QtWidgets.QMessageBox.information(self, "Ошибка", message)
@@ -163,7 +189,6 @@ class WindowAuthorization(QtWidgets.QMainWindow):
         global windowSection
         windowSection = data.windows.windows_sections.WindowSections()
         windowSection.show()
-
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_Return or event.key() == Qt.Key.Key_Enter:

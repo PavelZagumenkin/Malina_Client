@@ -1,7 +1,6 @@
 from PyQt6 import QtWidgets, QtGui, QtCore
 from PyQt6.QtWidgets import QTableWidgetItem, QInputDialog, QMessageBox
 from data.ui.mini_table_window import Ui_mini_table_window
-from data.requests.db_requests import Database
 from data.signals import Signals
 from data.active_session import Session
 import data.windows.windows_control
@@ -13,7 +12,6 @@ class WindowUsersControl(QtWidgets.QMainWindow):
         super().__init__()
         self.ui = Ui_mini_table_window()
         self.ui.setupUi(self)
-        self.database = Database()
         self.signals = Signals()
         self.session = Session.get_instance()  # Получение экземпляра класса Session
         self.ui.btn_back.clicked.connect(self.show_windowControl)

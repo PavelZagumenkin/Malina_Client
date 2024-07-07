@@ -1,7 +1,6 @@
 from PyQt6 import QtWidgets, QtGui, QtCore
 from PyQt6.QtWidgets import QTableWidgetItem, QInputDialog, QMessageBox
 from data.ui.mini_table_window import Ui_mini_table_window
-from data.requests.db_requests import Database
 from data.signals import Signals
 import data.windows.windows_control
 import datetime
@@ -14,7 +13,6 @@ class WindowLogsView(QtWidgets.QMainWindow):
         self.ui = Ui_mini_table_window()
         self.ui.setupUi(self)
         self.signals = Signals()
-        self.database = Database()
         self.session = Session.get_instance()  # Получение экземпляра класса Session
         self.ui.btn_back.clicked.connect(self.show_windowControl)
         self.ui.label_windowName.setText('Панель просмотра логов')

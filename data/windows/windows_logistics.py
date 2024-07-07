@@ -3,7 +3,6 @@ import data.windows.windows_sections
 import data.windows.windows_autoorders
 import data.windows.windows_konditerskie
 from data.ui.logistics import Ui_WindowLogistics
-from data.requests.db_requests import Database
 import datetime
 from data.active_session import Session
 from data.signals import Signals
@@ -15,7 +14,6 @@ class WindowLogistics(QtWidgets.QMainWindow):
         self.ui = Ui_WindowLogistics()
         self.ui.setupUi(self)
         self.signals = Signals()
-        self.database = Database()
         self.session = Session.get_instance()  # Получение экземпляра класса Session
         icon = QtGui.QIcon()
         icon.addPixmap(QtGui.QPixmap("data/images/icon.ico"), QtGui.QIcon.Mode.Normal, QtGui.QIcon.State.Off)

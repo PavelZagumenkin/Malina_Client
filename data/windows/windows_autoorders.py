@@ -2,10 +2,8 @@ from PyQt6 import QtWidgets, QtGui
 import data.windows.windows_logistics
 import data.windows.windows_bakery
 from data.ui.autoorders import Ui_WindowAutoOrders
-from data.requests.db_requests import Database
 from data.active_session import Session
 from data.signals import Signals
-import datetime
 
 
 class WindowAutoorders(QtWidgets.QMainWindow):
@@ -14,7 +12,6 @@ class WindowAutoorders(QtWidgets.QMainWindow):
         self.ui = Ui_WindowAutoOrders()
         self.ui.setupUi(self)
         self.signals = Signals()
-        self.database = Database()
         self.session = Session.get_instance()  # Получение экземпляра класса Session
         icon = QtGui.QIcon()
         icon.addPixmap(QtGui.QPixmap("data/images/icon.ico"), QtGui.QIcon.Mode.Normal, QtGui.QIcon.State.Off)
@@ -58,13 +55,5 @@ class WindowAutoorders(QtWidgets.QMainWindow):
 
     def closeEvent(self, event):
         if event.spontaneous():
-            username = self.session.get_username()  # Получение имени пользователя из экземпляра класса Session
-            logs_result = self.database.add_log(datetime.datetime.now().date(), datetime.datetime.now().time(),
-                                            f"Пользователь {username} вышел из системы.")
-            if "Лог записан" in logs_result:
-                self.signals.success_signal.emit(logs_result)
-            elif 'Ошибка работы' in logs_result:
-                self.signals.error_DB_signal.emit(logs_result)
-            else:
-                self.signals.failed_signal.emit(logs_result)
+            self.logs.add_log(f"Пользователь {self.session.get_username()} вышел из системы.")
         event.accept()

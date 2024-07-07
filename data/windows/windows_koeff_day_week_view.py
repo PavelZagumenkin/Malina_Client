@@ -5,7 +5,6 @@ import textwrap
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import QTableWidgetItem
 from PyQt6.QtWidgets import QMessageBox
-from data.requests.db_requests import Database
 from data.signals import Signals
 from data.ui.autozakaz_table import Ui_autozakaz_table
 import data.windows.windows_bakery
@@ -16,7 +15,6 @@ class WindowKoeffDayWeekView(QtWidgets.QMainWindow):
         super().__init__()
         self.ui = Ui_autozakaz_table()
         self.ui.setupUi(self)
-        self.database = Database()
         self.signals = Signals()
         self.category = category
         self.periodDay = periodDay

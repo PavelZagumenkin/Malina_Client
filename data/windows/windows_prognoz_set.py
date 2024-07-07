@@ -6,7 +6,6 @@ import pandas as pd
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import QTableWidgetItem
 from PyQt6.QtWidgets import QMessageBox
-from data.requests.db_requests import Database
 from data.signals import Signals
 from data.active_session import Session
 from data.ui.autozakaz_table import Ui_autozakaz_table
@@ -18,7 +17,6 @@ class WindowPrognozTablesSet(QtWidgets.QMainWindow):
         super().__init__()
         self.ui = Ui_autozakaz_table()
         self.ui.setupUi(self)
-        self.database = Database()
         self.signals = Signals()
         self.session = Session.get_instance()  # Получение экземпляра класса Session
         self.kod = ''

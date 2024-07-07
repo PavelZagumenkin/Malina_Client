@@ -2,12 +2,12 @@ from PyQt6 import QtWidgets, QtGui
 from data.ui.sections import Ui_WindowSections
 from data.active_session import Session
 import data.windows.windows_authorization
-# import data.windows.windows_control
-# import data.windows.windows_logistics
-# import data.windows.windows_production
-# from data.requests.db_requests import Database
+import data.windows.windows_control
+import data.windows.windows_logistics
+import data.windows.windows_production
+from data.add_logs import add_log
 from data.signals import Signals
-import datetime
+import sys
 
 
 
@@ -17,23 +17,22 @@ class WindowSections(QtWidgets.QMainWindow):
         self.ui = Ui_WindowSections()
         self.ui.setupUi(self)
         self.signals = Signals()
-        # self.database = Database()
-        # self.session = Session.get_instance()  # Получение экземпляра класса Session
-        # role = self.session.get_role()  # Получение роли пользователя из экземпляра класса Session
-        # if role == 'operator':
-        #     self.ui.btn_logistics.setEnabled(True)
-        # elif role == 'logist':
-        #     self.ui.btn_logistics.setEnabled(True)
-        # elif role == 'supervisor':
-        #     self.ui.btn_trade.setEnabled(True)
-        # elif role == 'manager':
-        #     self.ui.btn_office.setEnabled(True)
-        # elif role == 'superadmin':
-        #     self.ui.btn_logistics.setEnabled(True)
-        #     self.ui.btn_trade.setEnabled(True)
-        #     self.ui.btn_production.setEnabled(True)
-        #     self.ui.btn_office.setEnabled(True)
-        #     self.ui.btn_control.setEnabled(True)
+        self.session = Session.get_instance()  # Получение экземпляра класса Session
+        role = self.session.get_role()  # Получение роли пользователя из экземпляра класса Session
+        if role == 'operator':
+            self.ui.btn_logistics.setEnabled(True)
+        elif role == 'logist':
+            self.ui.btn_logistics.setEnabled(True)
+        elif role == 'supervisor':
+            self.ui.btn_trade.setEnabled(True)
+        elif role == 'manager':
+            self.ui.btn_office.setEnabled(True)
+        elif role == 'superadmin':
+            self.ui.btn_logistics.setEnabled(True)
+            self.ui.btn_trade.setEnabled(True)
+            self.ui.btn_production.setEnabled(True)
+            self.ui.btn_office.setEnabled(True)
+            self.ui.btn_control.setEnabled(True)
         self.ui.btn_exit.clicked.connect(self.logout)
         self.ui.btn_logistics.clicked.connect(self.show_logistics)
         self.ui.btn_control.clicked.connect(self.show_control)
@@ -49,13 +48,9 @@ class WindowSections(QtWidgets.QMainWindow):
 
     # Обработка выхода пользователя
     def logout(self):
-        username = self.session.get_username()  # Получение имени пользователя из экземпляра класса Session
-        logs_result = self.database.add_log(datetime.datetime.now().date(), datetime.datetime.now().time(),
-                                            f"Пользователь {username} вышел из системы.")
+        logs_result = add_log(f"Пользователь {self.session.get_username()} вышел из системы.")
         if "Лог записан" in logs_result:
             self.signals.success_signal.emit(logs_result)
-        elif 'Ошибка работы' in logs_result:
-            self.signals.error_DB_signal.emit(logs_result)
         else:
             self.signals.failed_signal.emit(logs_result)
         self.close()
@@ -97,8 +92,12 @@ class WindowSections(QtWidgets.QMainWindow):
 
 
     def show_error_message(self, message):
-        # Отображаем сообщение об ошибке
-        QtWidgets.QMessageBox.information(self, "Ошибка", message)
+        if "Сервер не доступен!" in message or "HTTP ошибка:" in message or "Ошибка запроса:" in message:
+            QtWidgets.QMessageBox.information(self, "Ошибка", message)
+            sys.exit()
+        else:
+            # Отображаем сообщение об ошибке
+            QtWidgets.QMessageBox.information(self, "Ошибка", message)
 
 
     def show_DB_error_message(self, message):
@@ -108,13 +107,9 @@ class WindowSections(QtWidgets.QMainWindow):
 
     def closeEvent(self, event):
         if event.spontaneous():
-            username = self.session.get_username()  # Получение имени пользователя из экземпляра класса Session
-            logs_result = self.database.add_log(datetime.datetime.now().date(), datetime.datetime.now().time(),
-                                            f"Пользователь {username} вышел из системы.")
+            logs_result = add_log(f"Пользователь {self.session.get_username()} вышел из системы.")
             if "Лог записан" in logs_result:
                 self.signals.success_signal.emit(logs_result)
-            elif 'Ошибка работы' in logs_result:
-                self.signals.error_DB_signal.emit(logs_result)
             else:
                 self.signals.failed_signal.emit(logs_result)
         event.accept()

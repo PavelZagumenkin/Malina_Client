@@ -3,7 +3,6 @@ import data.windows.windows_sections
 from data.ui.production import Ui_WindowProduction
 from data.windows.windows_nomenklatura import WindowNomenklatura
 from data.windows.windows_view_tp import WindowTpView
-from data.requests.db_requests import Database
 import datetime
 from data.active_session import Session
 from data.signals import Signals
@@ -15,7 +14,6 @@ class WindowProduction(QtWidgets.QMainWindow):
         self.ui = Ui_WindowProduction()
         self.ui.setupUi(self)
         self.signals = Signals()
-        self.database = Database()
         self.session = Session.get_instance()  # Получение экземпляра класса Session
         icon = QtGui.QIcon()
         icon.addPixmap(QtGui.QPixmap("data/images/icon.ico"), QtGui.QIcon.Mode.Normal, QtGui.QIcon.State.Off)
