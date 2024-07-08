@@ -4,7 +4,10 @@ import data.windows.windows_sections
 import data.windows.windows_usersControl
 import data.windows.windows_logsView
 from data.signals import Signals
+from data.server_requests import ServerRequests
+from data.add_logs import add_log
 from data.active_session import Session
+import sys
 
 class WindowControl(QtWidgets.QMainWindow):
     def __init__(self):
@@ -12,7 +15,8 @@ class WindowControl(QtWidgets.QMainWindow):
         self.ui = Ui_WindowControl()
         self.ui.setupUi(self)
         self.signals = Signals()
-        self.session = Session.get_instance()  # Получение экземпляра класса Session
+        self.server_requests = ServerRequests()
+        self.session = Session.get_instance()
         self.ui.btn_back.clicked.connect(self.show_windowSection)
         self.ui.btn_control_users.clicked.connect(self.show_windowUserControl)
         self.ui.btn_logs_editing.clicked.connect(self.show_windowLogsView)
@@ -22,7 +26,7 @@ class WindowControl(QtWidgets.QMainWindow):
         # Подключаем слоты к сигналам
         self.signals.success_signal.connect(self.show_success_message)
         self.signals.failed_signal.connect(self.show_error_message)
-        self.signals.error_DB_signal.connect(self.show_DB_error_message)
+        self.signals.crit_failed_signal.connect(self.show_crit_error_message)
 
 
     def show_windowSection(self):
@@ -51,16 +55,22 @@ class WindowControl(QtWidgets.QMainWindow):
 
 
     def show_error_message(self, message):
-        # Отображаем сообщение об ошибке
         QtWidgets.QMessageBox.information(self, "Ошибка", message)
 
 
-    def show_DB_error_message(self, message):
-        # Отображаем сообщение об ошибке
+    def show_crit_error_message(self, message):
         QtWidgets.QMessageBox.information(self, "Ошибка", message)
+        sys.exit()
 
 
     def closeEvent(self, event):
         if event.spontaneous():
-            self.logs.add_log(f"Пользователь {self.session.get_username()} вышел из системы.")
+            logs_result = add_log(f"Пользователь {self.session.get_username()} вышел из системы.")
+            if "Лог записан" in logs_result['result']:
+                self.signals.success_signal.emit(logs_result['result'])
+                self.close()
+            elif 'Критическая ошибка' in logs_result['result']:
+                self.signals.crit_failed_signal.emit(logs_result['result'])
+            else:
+                self.signals.failed_signal.emit(logs_result['result'])
         event.accept()

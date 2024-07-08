@@ -5,6 +5,7 @@ from data.ui.authorization import Ui_WindowAuthorization
 from data.signals import Signals
 from data.active_session import Session
 from data.add_logs import add_log
+from data.server_requests import ServerRequests
 import data.windows.windows_sections
 import datetime
 import requests
@@ -19,11 +20,12 @@ class WindowAuthorization(QtWidgets.QMainWindow):
         self.ui.setupUi(self)
         self.signals = Signals()
         self.session = Session.get_instance()
+        self.server_requests = ServerRequests()
         self.ui.label_login_password.setFocus()
         self.ui.btn_login.clicked.connect(self.login)
         self.signals.success_signal.connect(self.show_success_message)
         self.signals.failed_signal.connect(self.show_error_message)
-        self.signals.error_DB_signal.connect(self.show_DB_error_message)
+        self.signals.crit_failed_signal.connect(self.show_crit_error_message)
         icon = QtGui.QIcon()
         icon.addPixmap(QtGui.QPixmap("data/images/icon.ico"), QtGui.QIcon.Mode.Normal, QtGui.QIcon.State.Off)
         self.setWindowIcon(icon)
@@ -39,20 +41,14 @@ class WindowAuthorization(QtWidgets.QMainWindow):
 
     def check_update(self):
         version = self.ui.label_version_number.text()
-        try:
-            response = requests.post('http://localhost:5000/check_version', json={"version": version})
-            response.raise_for_status()  # Проверка, успешен ли запрос
-            data = response.json()
-            result = data['result']
-            actual_version = data['actual_version']
+        data_server = self.server_requests.post('check_version', {"version": version})
+        if 'Критическая ошибка' in data_server['result']:
+            self.signals.crit_failed_signal.emit(data_server['result'])
+        else:
+            result = data_server['result']
+            actual_version = data_server['actual_version']
             if "Необходимо обновить приложение до версии" in result:
                 self.dialog_need_update(actual_version)
-        except requests.exceptions.ConnectionError:
-            self.signals.failed_signal.emit('Сервер не доступен!')
-        except requests.exceptions.HTTPError as err:
-            self.signals.failed_signal.emit(f'HTTP ошибка: {err}')
-        except requests.exceptions.RequestException as err:
-            self.signals.failed_signal.emit(f'Ошибка запроса: {err}')
 
 
     def dialog_need_update(self, actual_version):
@@ -106,81 +102,53 @@ class WindowAuthorization(QtWidgets.QMainWindow):
     def login(self):
         username = self.ui.line_login.text()
         password = self.ui.line_password.text()
-        try:
-            response = requests.post('http://localhost:5000/login', json={"username": username, "password": password})
-            response.raise_for_status()  # Проверка, успешен ли запрос
-            data_otvet = response.json()
-            result = data_otvet['result']
-            role = data_otvet['role']
-            if "Авторизация успешна" in result:
-                logs_result = add_log(f"Пользователь {username} выполнил вход в систему.")
-                if "Лог записан" in logs_result:
-                    self.session.set_username_role_date(username, role, datetime.datetime.now().strftime('%Y.%m.%d'))
-                    self.signals.success_signal.emit(result)
-                else:
-                    self.signals.failed_signal.emit(logs_result)
+        # Отправляем POST-запрос на сервер для входа
+        data_server = self.server_requests.post('login', {"username": username, "password": password})
+        if 'Критическая ошибка' in data_server['result']:
+            self.signals.crit_failed_signal.emit(data_server['result'])
+        # Получаем результат и роль из ответа
+        result = data_server.get('result')
+        role = data_server.get('role')
+        # Обрабатываем ответ
+        if "Авторизация успешна" in result:
+            logs_result = add_log(f"Пользователь {username} выполнил вход в систему.")
+            if "Лог записан" in logs_result['result']:
+                self.session.set_username_role_date(username, role, datetime.datetime.now().strftime('%Y.%m.%d'))
+                self.show_windowSection()
+            elif 'Критическая ошибка' in logs_result['result']:
+                self.signals.crit_failed_signal.emit(logs_result['result'])
             else:
-                if len(username) == 0:
-                    self.signals.failed_signal.emit("Введите логин")
-                elif len(password) == 0:
-                    self.signals.failed_signal.emit("Введите пароль")
-                else:
-                    if 'Ошибка работы' in result:
-                        self.signals.error_DB_signal.emit(result)
-                    else:
-                        self.signals.failed_signal.emit(result)
-        except requests.exceptions.ConnectionError:
-            self.signals.failed_signal.emit('Сервер не доступен!')
-        except requests.exceptions.HTTPError as err:
-            self.signals.failed_signal.emit(f'HTTP ошибка: {err}')
-        except requests.exceptions.RequestException as err:
-            self.signals.failed_signal.emit(f'Ошибка запроса: {err}')
+                self.signals.failed_signal.emit(logs_result['result'])
+        else:
+            if len(username) == 0:
+                self.signals.failed_signal.emit("Введите логин")
+            elif len(password) == 0:
+                self.signals.failed_signal.emit("Введите пароль")
+            else:
+                self.signals.failed_signal.emit(result)
 
     def get_users_role(self):
-        try:
-            response = requests.get('http://localhost:5000/get_users_role')
-            response.raise_for_status()
-            data_otvet = response.json()
-            return data_otvet['result']
-        except requests.exceptions.ConnectionError:
-            self.signals.failed_signal.emit('Сервер не доступен!')
-        except requests.exceptions.HTTPError as err:
-            self.signals.failed_signal.emit(f'HTTP ошибка: {err}')
-        except requests.exceptions.RequestException as err:
-            self.signals.failed_signal.emit(f'Ошибка запроса: {err}')
+        data_server = self.server_requests.post('get_users_role')
+        return data_server['result']
 
     def count_row_in_DB_user_role(self):
-        try:
-            response = requests.get('http://localhost:5000/count_row_in_DB_user_role')
-            response.raise_for_status()
-            data_otvet = response.json()
-            return data_otvet['result']
-        except requests.exceptions.ConnectionError:
-            self.signals.failed_signal.emit('Сервер не доступен!')
-        except requests.exceptions.HTTPError as err:
-            self.signals.failed_signal.emit(f'HTTP ошибка: {err}')
-        except requests.exceptions.RequestException as err:
-            self.signals.failed_signal.emit(f'Ошибка запроса: {err}')
+        data_server = self.server_requests.post('count_row_in_DB_user_role')
+        return data_server['result']
 
     def show_success_message(self, message):
-        if "Авторизация успешна" in message:
-            self.show_windowSection()
+        pass
+
+    def show_crit_error_message(self, message):
+        QtWidgets.QMessageBox.information(self, "Критическая ошибка", message)
+        sys.exit()
 
     def show_error_message(self, message):
         if "Введите логин" in message or "Введите пароль" in message:
             self.ui.label_login_password.setText(message)
             self.ui.label_login_password.setStyleSheet('color: rgba(228, 107, 134, 1)')
-        elif "Сервер не доступен!" in message or "HTTP ошибка:" in message or "Ошибка запроса:" in message:
-            QtWidgets.QMessageBox.information(self, "Ошибка", message)
-            sys.exit()
-        else:
-            # Отображаем сообщение об ошибке
-            QtWidgets.QMessageBox.information(self, "Ошибка", message)
-
-
-    def show_DB_error_message(self, message):
-        # Отображаем сообщение об ошибке
-        QtWidgets.QMessageBox.information(self, "Ошибка", message)
+        elif "Неверный логин или пароль" in message:
+            self.ui.label_login_password.setText(message)
+            self.ui.label_login_password.setStyleSheet('color: rgba(228, 107, 134, 1)')
 
 
     def show_windowSection(self):

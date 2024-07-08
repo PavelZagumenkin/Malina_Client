@@ -5,6 +5,9 @@ from data.signals import Signals
 import data.windows.windows_control
 import datetime
 from data.active_session import Session
+from data.server_requests import ServerRequests
+from data.add_logs import add_log
+import sys
 
 
 class WindowLogsView(QtWidgets.QMainWindow):
@@ -13,13 +16,14 @@ class WindowLogsView(QtWidgets.QMainWindow):
         self.ui = Ui_mini_table_window()
         self.ui.setupUi(self)
         self.signals = Signals()
+        self.server_requests = ServerRequests()
         self.session = Session.get_instance()  # Получение экземпляра класса Session
         self.ui.btn_back.clicked.connect(self.show_windowControl)
         self.ui.label_windowName.setText('Панель просмотра логов')
         # Подключаем слоты к сигналам
         self.signals.success_signal.connect(self.show_success_message)
         self.signals.failed_signal.connect(self.show_error_message)
-        self.signals.error_DB_signal.connect(self.show_DB_error_message)
+        self.signals.crit_failed_signal.connect(self.show_crit_error_message)
         # Устанавливаем иконку
         icon = QtGui.QIcon()
         icon.addPixmap(QtGui.QPixmap("data/images/icon.ico"), QtGui.QIcon.Mode.Normal, QtGui.QIcon.State.Off)
@@ -128,18 +132,15 @@ class WindowLogsView(QtWidgets.QMainWindow):
         # Создаем таблицу логов
         self.create_table()
 
-
     def setEndDay(self):
         if self.start_day.date() > self.end_day.date():
             self.end_day.setDate(self.start_day.date())
         self.create_table()
 
-
     def setStartDay(self):
         if self.start_day.date() > self.end_day.date():
             self.start_day.setDate(self.end_day.date())
         self.create_table()
-
 
     def create_table(self):
         self.ui.tableWidget.setMaximumWidth(887)
@@ -163,25 +164,26 @@ class WindowLogsView(QtWidgets.QMainWindow):
         self.ui.tableWidget.setColumnWidth(2, 639)
         self.add_data_in_table()
 
-
     def add_data_in_table(self):
-        result = self.database.get_logs(self.start_day.date().toString("yyyy-MM-dd"), self.end_day.date().toString("yyyy-MM-dd"))
-        if len(result) >= 1:
-            if isinstance(result, list):
-                for row in range(len(result)):
+        data_server = self.server_requests.post('get_logs', {'start_day': self.start_day.date().toString("yyyy-MM-dd"),
+                                                             'end_day': self.end_day.date().toString("yyyy-MM-dd")})
+        if 'Критическая ошибка' in data_server['result']:
+            self.signals.crit_failed_signal.emit(data_server['result'])
+        if len(data_server['result']) >= 1:
+            if isinstance(data_server['result'], list):
+                for row in range(len(data_server['result'])):
                     font = QtGui.QFont()
                     font.setFamily("Trebuchet MS")
                     font.setBold(False)
                     font.setWeight(50)
                     font.setPointSize(10)
-                    self.ui.tableWidget.setItem(row, 0, QTableWidgetItem(str(result[row][1])))
-                    self.ui.tableWidget.setItem(row, 1, QTableWidgetItem(str(result[row][2])))
-                    self.ui.tableWidget.setItem(row, 2, QTableWidgetItem(result[row][3]))
+                    self.ui.tableWidget.setItem(row, 0, QTableWidgetItem(str(data_server['result'][row][1])))
+                    self.ui.tableWidget.setItem(row, 1, QTableWidgetItem(str(data_server['result'][row][2])))
+                    self.ui.tableWidget.setItem(row, 2, QTableWidgetItem(data_server['result'][row][3]))
             else:
-                self.signals.error_DB_signal.emit(result)
+                self.signals.failed_signal.emit(data_server['result'])
         else:
-            self.signals.error_DB_signal.emit('Логи не найдены!')
-
+            self.signals.failed_signal.emit('Логи не найдены!')
 
     def show_windowControl(self):
         # Отображаем главное окно приложения
@@ -190,15 +192,18 @@ class WindowLogsView(QtWidgets.QMainWindow):
         windowControl = data.windows.windows_control.WindowControl()
         windowControl.show()
 
-
     def get_count_rows(self):
-        count_rows = self.database.count_row_in_DB_logs(self.start_day.date().toString("yyyy-MM-dd"), self.end_day.date().toString("yyyy-MM-dd"))
-        if isinstance(count_rows, int):
-            return count_rows
+        data_server = self.server_requests.post('count_row_in_DB_logs',
+                                                {'start_day': self.start_day.date().toString("yyyy-MM-dd"),
+                                                 'end_day': self.end_day.date().toString("yyyy-MM-dd")})
+        if isinstance(data_server['result'], int):
+            return data_server['result']
         else:
-            self.signals.failed_signal.emit(count_rows)
-            return 0
-
+            if 'Критическая ошибка' in data_server['result']:
+                self.signals.crit_failed_signal.emit(data_server['result'])
+            else:
+                self.signals.failed_signal.emit(data_server['result'])
+                return 0
 
     def find_log(self):
         find_text = self.line_find.text()
@@ -215,15 +220,12 @@ class WindowLogsView(QtWidgets.QMainWindow):
                 else:
                     self.ui.tableWidget.setRowHidden(row, False)
 
-
     def cansel_find_log(self):
         self.line_find.clear()
         for row in range(self.ui.tableWidget.rowCount()):
             self.ui.tableWidget.setRowHidden(row, False)
 
-
     def dialog_delete_logs(self):
-        # delete_logs = self.database.delete_logs_in_DB(self.start_day.date().toString("yyyy-MM-dd"), self.end_day.date().toString("yyyy-MM-dd"))
         start_day = self.start_day.date().toString("yyyy-MM-dd")
         end_day = self.end_day.date().toString("yyyy-MM-dd")
         dialogBox = QMessageBox()
@@ -232,52 +234,44 @@ class WindowLogsView(QtWidgets.QMainWindow):
         dialogBox.setWindowTitle('Удаление логов!')
         dialogBox.setIcon(QMessageBox.Icon.Critical)
         dialogBox.setStandardButtons(QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel)
-        dialogBox.buttonClicked.connect(lambda button: self.delete_logs(button, start_day, end_day))
+        dialogBox.buttonClicked.connect(lambda button: self.delete_logs(button))
         dialogBox.exec()
 
-
-    def delete_logs(self, button_clicked, start_day, end_day):
+    def delete_logs(self, button_clicked):
         if button_clicked.text() == "OK":
-            result = self.database.delete_logs(start_day, end_day)
-            if "успешно удалены из БД" in result:
-                self.signals.success_signal.emit(result)
+            data_server = self.server_requests.post('delete_logs',
+                                                    {'start_day': self.start_day.date().toString("yyyy-MM-dd"),
+                                                     'end_day': self.end_day.date().toString("yyyy-MM-dd")})
+            if 'Критическая ошибка' in data_server['result']:
+                self.signals.crit_failed_signal.emit(data_server['result'])
+            elif "успешно удалены из БД" in data_server['result']:
+                self.signals.success_signal.emit(data_server['result'])
             else:
-                if 'Ошибка работы' in result:
-                    self.signals.error_DB_signal.emit(result)
-                else:
-                    self.signals.failed_signal.emit(result)
+                self.signals.failed_signal.emit(data_server['result'])
                 return
-
 
     def show_success_message(self, message):
         if "успешно удалены из БД" in message:
-            # Отображаем сообщение об успешной регистрации
             QtWidgets.QMessageBox.information(self, "Успешно", message)
             self.create_table()
         else:
             pass
 
-
-
     def show_error_message(self, message):
-        # Отображаем сообщение об ошибке в БД
         QtWidgets.QMessageBox.information(self, "Ошибка", message)
 
-
-    def show_DB_error_message(self, message):
-        # Отображаем сообщение об ошибке в БД
-        QtWidgets.QMessageBox.information(self, "Ошибка", message)
-
+    def show_crit_error_message(self, message):
+        QtWidgets.QMessageBox.information(self, "Критическая ошибка", message)
+        sys.exit()
 
     def closeEvent(self, event):
         if event.spontaneous():
-            username = self.session.get_username()  # Получение имени пользователя из экземпляра класса Session
-            logs_result = self.database.add_log(datetime.datetime.now().date(), datetime.datetime.now().time(),
-                                            f"Пользователь {username} вышел из системы.")
-            if "Лог записан" in logs_result:
-                self.signals.success_signal.emit(logs_result)
-            elif 'Ошибка работы' in logs_result:
-                self.signals.error_DB_signal.emit(logs_result)
+            logs_result = add_log(f"Пользователь {self.session.get_username()} вышел из системы.")
+            if "Лог записан" in logs_result['result']:
+                self.signals.success_signal.emit(logs_result['result'])
+                self.close()
+            elif 'Критическая ошибка' in logs_result['result']:
+                self.signals.crit_failed_signal.emit(logs_result['result'])
             else:
-                self.signals.failed_signal.emit(logs_result)
+                self.signals.failed_signal.emit(logs_result['result'])
         event.accept()
