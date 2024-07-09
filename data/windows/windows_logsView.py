@@ -3,7 +3,6 @@ from PyQt6.QtWidgets import QTableWidgetItem, QInputDialog, QMessageBox
 from data.ui.mini_table_window import Ui_mini_table_window
 from data.signals import Signals
 import data.windows.windows_control
-import datetime
 from data.active_session import Session
 from data.server_requests import ServerRequests
 from data.add_logs import add_log

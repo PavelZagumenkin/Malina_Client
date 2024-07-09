@@ -4,7 +4,9 @@ from data.ui.mini_table_window import Ui_mini_table_window
 from data.signals import Signals
 from data.active_session import Session
 import data.windows.windows_control
-import datetime
+from data.server_requests import ServerRequests
+from data.add_logs import add_log
+import sys
 
 
 class WindowUsersControl(QtWidgets.QMainWindow):
@@ -13,13 +15,14 @@ class WindowUsersControl(QtWidgets.QMainWindow):
         self.ui = Ui_mini_table_window()
         self.ui.setupUi(self)
         self.signals = Signals()
+        self.server_requests = ServerRequests()
         self.session = Session.get_instance()  # Получение экземпляра класса Session
         self.ui.btn_back.clicked.connect(self.show_windowControl)
         self.ui.label_windowName.setText('Панель управления пользователями')
         # Подключаем слоты к сигналам
         self.signals.success_signal.connect(self.show_success_message)
         self.signals.failed_signal.connect(self.show_error_message)
-        self.signals.error_DB_signal.connect(self.show_DB_error_message)
+        self.signals.crit_failed_signal.connect(self.show_crit_error_message)
         # Устанавливаем иконку
         icon = QtGui.QIcon()
         icon.addPixmap(QtGui.QPixmap("data/images/icon.ico"), QtGui.QIcon.Mode.Normal, QtGui.QIcon.State.Off)
@@ -132,10 +135,12 @@ class WindowUsersControl(QtWidgets.QMainWindow):
 
 
     def add_data_in_table(self):
-        result = self.database.get_users_role()
-        if len(result) >= 1:
-            if isinstance(result, list):
-                for row in range(len(result)):
+        data_server = self.server_requests.post('get_users_role')
+        if 'Критическая ошибка' in data_server['result']:
+            self.signals.crit_failed_signal.emit(data_server['result'])
+        if len(data_server['result']) >= 1:
+            if isinstance(data_server['result'], list):
+                for row in range(len(data_server['result'])):
                     font = QtGui.QFont()
                     font.setFamily("Trebuchet MS")
                     font.setBold(False)
@@ -155,17 +160,17 @@ class WindowUsersControl(QtWidgets.QMainWindow):
                     self.line_role_table.addItems(self.listRole_table)
                     self.line_role_table.wheelEvent = lambda event: None
                     role_in_DB = 'Логист'
-                    if result[row][2] == 'operator':
+                    if data_server['result'][row][2] == 'operator':
                         role_in_DB = 'Оператор'
-                    elif result[row][2] == 'logist':
+                    elif data_server['result'][row][2] == 'logist':
                         role_in_DB = 'Логист'
-                    elif result[row][2] == 'supervisor':
+                    elif data_server['result'][row][2] == 'supervisor':
                         role_in_DB = 'Супервайзер'
-                    elif result[row][2] == 'manager':
+                    elif data_server['result'][row][2] == 'manager':
                         role_in_DB = 'Менеджер'
-                    elif result[row][2] == 'superadmin':
+                    elif data_server['result'][row][2] == 'superadmin':
                         role_in_DB = 'Администратор'
-                    self.ui.tableWidget.setItem(row, 0, QTableWidgetItem(result[row][1]))
+                    self.ui.tableWidget.setItem(row, 0, QTableWidgetItem(data_server['result'][row][1]))
                     self.ui.tableWidget.setCellWidget(row, 1, self.button_reset_password)
                     self.ui.tableWidget.cellWidget(row, 1).setText('Сбросить пароль')
                     self.ui.tableWidget.cellWidget(row, 1).setStyleSheet(open('data/css/QPushButton.qss').read())
@@ -181,7 +186,7 @@ class WindowUsersControl(QtWidgets.QMainWindow):
                     self.ui.tableWidget.cellWidget(row, 4).setStyleSheet(open('data/css/QPushButton.qss').read())
                     self.ui.tableWidget.cellWidget(row, 4).clicked.connect(self.dialog_delete_user)
             else:
-                self.signals.error_DB_signal.emit(result)
+                self.signals.failed_signal.emit(data_server['result'])
         else:
             self.signals.failed_signal.emit('Пользователей не найдено!')
 
@@ -195,11 +200,13 @@ class WindowUsersControl(QtWidgets.QMainWindow):
 
 
     def get_count_rows(self):
-        count_rows = self.database.count_row_in_DB_user_role()
-        if isinstance(count_rows, int):
-            return count_rows
+        data_server = self.server_requests.post('count_row_in_DB_user_role')
+        if isinstance(data_server['result'], int):
+            return data_server['result']
+        elif 'Критическая ошибка' in data_server['result']:
+            self.signals.crit_failed_signal.emit(data_server['result'])
         else:
-            self.signals.error_DB_signal.emit(count_rows)
+            self.signals.failed_signal.emit(data_server['result'])
             return 0
 
     def register(self):
@@ -227,14 +234,13 @@ class WindowUsersControl(QtWidgets.QMainWindow):
             self.signals.failed_signal.emit("Не заданы права пользователя")
         else:
             # Выполняем регистрацию в базе данных и отправляем соответствующий сигнал
-            result = self.database.register(username, password, role)
-            if "успешно зарегистрирован" in result:
-                self.signals.success_signal.emit(result)
+            data_server = self.server_requests.post('register', {'username': username, 'password': password, 'role': role})
+            if 'Критическая ошибка' in data_server['result']:
+                self.signals.crit_failed_signal.emit(data_server['result'])
+            elif "успешно зарегистрирован" in data_server['result']:
+                self.signals.success_signal.emit(data_server['result'])
             else:
-                if 'Ошибка работы' in result:
-                    self.signals.error_DB_signal.emit(result)
-                else:
-                    self.signals.failed_signal.emit(result)
+                self.signals.failed_signal.emit(data_server['result'])
 
 
     def reset_password(self):
@@ -243,14 +249,13 @@ class WindowUsersControl(QtWidgets.QMainWindow):
         username = self.ui.tableWidget.item(index.row(), 0).text()
         new_pass, ok = QInputDialog.getText(self, 'Сброс пароля', f'Введите новый пароль для пользователя {username}:')
         if ok:
-            result = self.database.update_password(username, new_pass)
-            if "успешно изменен" in result:
-                self.signals.success_signal.emit(result)
+            data_server = self.server_requests.post('update_password', {'username': username, 'new_pass': new_pass})
+            if 'Критическая ошибка' in data_server['result']:
+                self.signals.crit_failed_signal.emit(data_server['result'])
+            elif "успешно изменен" in data_server['result']:
+                self.signals.success_signal.emit(data_server['result'])
             else:
-                if 'Ошибка работы' in result:
-                    self.signals.error_DB_signal.emit(result)
-                else:
-                    self.signals.failed_signal.emit(result)
+                self.signals.failed_signal.emit(data_server['result'])
         else:
             return
 
@@ -272,14 +277,13 @@ class WindowUsersControl(QtWidgets.QMainWindow):
             new_role = 'superadmin'
         else:
             new_role = ''
-        result = self.database.update_user_role(username, new_role)
-        if "успешно изменены" in result:
-            self.signals.success_signal.emit(result)
+        data_server = self.server_requests.post('update_user_role', {'username': username, 'new_role': new_role})
+        if 'Критическая ошибка' in data_server['result']:
+            self.signals.crit_failed_signal.emit(data_server['result'])
+        elif "успешно изменены" in data_server['result']:
+            self.signals.success_signal.emit(data_server['result'])
         else:
-            if 'Ошибка работы' in result:
-                self.signals.error_DB_signal.emit(result)
-            else:
-                self.signals.failed_signal.emit(result)
+            self.signals.failed_signal.emit(data_server['result'])
             return
 
 
@@ -299,14 +303,13 @@ class WindowUsersControl(QtWidgets.QMainWindow):
 
     def delete_user(self, button_clicked, username):
         if button_clicked.text() == "OK":
-            result = self.database.delete_user(username)
-            if "успешно удален из БД" in result:
-                self.signals.success_signal.emit(result)
+            data_server = self.server_requests.post('delete_user', {'username': username})
+            if 'Критическая ошибка' in data_server['result']:
+                self.signals.crit_failed_signal.emit(data_server['result'])
+            elif "успешно удален из БД" in data_server['result']:
+                self.signals.success_signal.emit(data_server['result'])
             else:
-                if 'Ошибка работы' in result:
-                    self.signals.error_DB_signal.emit(result)
-                else:
-                    self.signals.failed_signal.emit(result)
+                self.signals.failed_signal.emit(data_server['result'])
                 return
 
 
@@ -328,21 +331,19 @@ class WindowUsersControl(QtWidgets.QMainWindow):
             # Отображаем сообщение об ошибке
             QtWidgets.QMessageBox.information(self, "Ошибка", message)
 
-
-    def show_DB_error_message(self, message):
-        # Отображаем сообщение об ошибке в БД
-        QtWidgets.QMessageBox.information(self, "Ошибка", message)
+    def show_crit_error_message(self, message):
+        QtWidgets.QMessageBox.information(self, "Критическая ошибка", message)
+        sys.exit()
 
 
     def closeEvent(self, event):
         if event.spontaneous():
-            username = self.session.get_username()  # Получение имени пользователя из экземпляра класса Session
-            logs_result = self.database.add_log(datetime.datetime.now().date(), datetime.datetime.now().time(),
-                                            f"Пользователь {username} вышел из системы.")
-            if "Лог записан" in logs_result:
-                self.signals.success_signal.emit(logs_result)
-            elif 'Ошибка работы' in logs_result:
-                self.signals.error_DB_signal.emit(logs_result)
+            logs_result = add_log(f"Пользователь {self.session.get_username()} вышел из системы.")
+            if "Лог записан" in logs_result['result']:
+                self.signals.success_signal.emit(logs_result['result'])
+                self.close()
+            elif 'Критическая ошибка' in logs_result['result']:
+                self.signals.crit_failed_signal.emit(logs_result['result'])
             else:
-                self.signals.failed_signal.emit(logs_result)
+                self.signals.failed_signal.emit(logs_result['result'])
         event.accept()
