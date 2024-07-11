@@ -2,7 +2,6 @@ from PyQt6 import QtWidgets, QtGui
 import data.windows.windows_production
 import data.windows.windows_dishes
 from data.ui.nomenklatura import Ui_WindowNomenklatura
-import datetime
 from data.active_session import Session
 from data.signals import Signals
 from data.server_requests import ServerRequests

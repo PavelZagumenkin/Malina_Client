@@ -382,6 +382,7 @@ class WindowKonditerskie(QtWidgets.QMainWindow):
             self.signals.failed_signal.emit(data_server['result'])
             return
 
+
     def show_success_message(self, message):
         if "успешно" in message:
             # Отображаем сообщение об успешной операции
@@ -394,6 +395,7 @@ class WindowKonditerskie(QtWidgets.QMainWindow):
     def show_error_message(self, message):
         # Отображаем сообщение об ошибке в БД
         QtWidgets.QMessageBox.information(self, "Ошибка", message)
+
 
     def show_crit_error_message(self, message):
         QtWidgets.QMessageBox.information(self, "Критическая ошибка", message)

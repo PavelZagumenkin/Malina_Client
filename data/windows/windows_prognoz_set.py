@@ -8,8 +8,11 @@ from PyQt6.QtWidgets import QTableWidgetItem
 from PyQt6.QtWidgets import QMessageBox
 from data.signals import Signals
 from data.active_session import Session
+from data.server_requests import ServerRequests
+from data.add_logs import add_log
 from data.ui.autozakaz_table import Ui_autozakaz_table
 import data.windows.windows_bakery
+import sys
 
 
 class WindowPrognozTablesSet(QtWidgets.QMainWindow):
@@ -18,9 +21,11 @@ class WindowPrognozTablesSet(QtWidgets.QMainWindow):
         self.ui = Ui_autozakaz_table()
         self.ui.setupUi(self)
         self.signals = Signals()
+        self.server_requests = ServerRequests()
         self.session = Session.get_instance()  # Получение экземпляра класса Session
         self.kod = ''
         self.name = ''
+        self.points = points
         self.periodDay = periodDay
         self.column_title = ['', '', 'Кф. товара', 'Выкладка', 'Квант поставки', 'Замес', 'Код блюда', 'Блюдо',
                              'Категория блюда']
@@ -61,9 +66,16 @@ class WindowPrognozTablesSet(QtWidgets.QMainWindow):
             self.ui.tableWidget.cellWidget(0, col_spin).setValue(1.00)
             self.ui.tableWidget.cellWidget(0, col_spin).setSingleStep(0.01)
             self.ui.tableWidget.cellWidget(0, col_spin).valueChanged.connect(self.raschetPrognoz)
+
+        # Сбор всех кодов
+        kods = []
         for row_spin in range(1, self.ui.tableWidget.rowCount()):
-            if self.poisk_display_kvant_batch(self.ui.tableWidget.item(row_spin, 6).text(),
-                                              self.ui.tableWidget.item(row_spin, 7).text()) == 'Отмена':
+            kods.append(self.ui.tableWidget.item(row_spin, 6).text())
+        kod_data = self.poisk_display_kvant_batch(kods)
+
+        for row_spin in range(1, self.ui.tableWidget.rowCount()):
+            kod = self.ui.tableWidget.item(row_spin, 6).text()
+            if kod not in kod_data:
                 self.ui.tableWidget.removeRow(row_spin)
                 for c in range(9, self.ui.tableWidget.columnCount()):
                     del saveZnach[c][row_spin]
@@ -73,6 +85,18 @@ class WindowPrognozTablesSet(QtWidgets.QMainWindow):
                         saveZnach[c][r] = saveZnach[c].pop(counter)
                         counter += 1
                 continue
+            # if self.poisk_display_kvant_batch(self.ui.tableWidget.item(row_spin, 6).text(),
+            #                                   self.ui.tableWidget.item(row_spin, 7).text()) == 'Отмена':
+            #     self.ui.tableWidget.removeRow(row_spin)
+            #     for c in range(9, self.ui.tableWidget.columnCount()):
+            #         del saveZnach[c][row_spin]
+            #     for c in range(9, self.ui.tableWidget.columnCount()):
+            #         counter = row_spin + 1
+            #         for r in range(row_spin, self.ui.tableWidget.rowCount()):
+            #             saveZnach[c][r] = saveZnach[c].pop(counter)
+            #             counter += 1
+            #     continue
+            data = kod_data[kod]
             self.ui.tableWidget.item(row_spin, 6).setFlags(QtCore.Qt.ItemFlag.ItemIsEnabled)
             self.KFTovarDSpin = QtWidgets.QDoubleSpinBox()
             self.DisplaySpin = QtWidgets.QSpinBox()
@@ -88,25 +112,30 @@ class WindowPrognozTablesSet(QtWidgets.QMainWindow):
             self.ui.tableWidget.cellWidget(row_spin, 2).valueChanged.connect(self.raschetPrognoz)
             self.ui.tableWidget.setCellWidget(row_spin, 3, self.DisplaySpin)
             self.ui.tableWidget.cellWidget(row_spin, 3).setMaximum(1000)
-            self.ui.tableWidget.cellWidget(row_spin, 3).setValue(
-                self.poisk_display_kvant_batch(self.ui.tableWidget.item(row_spin, 6).text(),
-                                               self.ui.tableWidget.item(row_spin, 7).text())[4])
+            # self.ui.tableWidget.cellWidget(row_spin, 3).setValue(
+            #     self.poisk_display_kvant_batch(self.ui.tableWidget.item(row_spin, 6).text(),
+            #                                    self.ui.tableWidget.item(row_spin, 7).text())[4])
+            self.ui.tableWidget.cellWidget(row_spin, 3).setValue(data[4])
             self.ui.tableWidget.cellWidget(row_spin, 3).setSingleStep(1)
             self.ui.tableWidget.setCellWidget(row_spin, 4, self.KvantSpin)
             self.ui.tableWidget.cellWidget(row_spin, 4).setMaximum(1000)
-            self.ui.tableWidget.cellWidget(row_spin, 4).setValue(
-                self.poisk_display_kvant_batch(self.ui.tableWidget.item(row_spin, 6).text(),
-                                               self.ui.tableWidget.item(row_spin, 7).text())[5])
+            # self.ui.tableWidget.cellWidget(row_spin, 4).setValue(
+            #     self.poisk_display_kvant_batch(self.ui.tableWidget.item(row_spin, 6).text(),
+            #                                    self.ui.tableWidget.item(row_spin, 7).text())[5])
+            self.ui.tableWidget.cellWidget(row_spin, 4).setValue(data[5])
             self.ui.tableWidget.cellWidget(row_spin, 4).setSingleStep(1)
             self.ui.tableWidget.setCellWidget(row_spin, 5, self.BatchSpin)
             self.ui.tableWidget.cellWidget(row_spin, 5).setMaximum(1000)
-            self.ui.tableWidget.cellWidget(row_spin, 5).setValue(
-                self.poisk_display_kvant_batch(self.ui.tableWidget.item(row_spin, 6).text(),
-                                               self.ui.tableWidget.item(row_spin, 7).text())[6])
+            # self.ui.tableWidget.cellWidget(row_spin, 5).setValue(
+            #     self.poisk_display_kvant_batch(self.ui.tableWidget.item(row_spin, 6).text(),
+            #                                    self.ui.tableWidget.item(row_spin, 7).text())[6])
+            self.ui.tableWidget.cellWidget(row_spin, 5).setValue(data[6])
             self.ui.tableWidget.cellWidget(row_spin, 5).setSingleStep(1)
-            self.ui.tableWidget.setItem(row_spin, 8, QTableWidgetItem(self.poisk_display_kvant_batch(self.ui.tableWidget.item(row_spin, 6).text(), self.ui.tableWidget.item(row_spin, 7).text())[3]))
+            # self.ui.tableWidget.setItem(row_spin, 8, QTableWidgetItem(self.poisk_display_kvant_batch(self.ui.tableWidget.item(row_spin, 6).text(), self.ui.tableWidget.item(row_spin, 7).text())[3]))
+            self.ui.tableWidget.setItem(row_spin, 8, QTableWidgetItem(data[3]))
             self.ui.tableWidget.item(row_spin, 8).setFlags(QtCore.Qt.ItemFlag.ItemIsEnabled)
-            self.ui.tableWidget.setItem(row_spin, 7, QTableWidgetItem(self.sravnenie_name(self.ui.tableWidget.item(row_spin, 6).text(), self.ui.tableWidget.item(row_spin, 7).text())))
+            # self.ui.tableWidget.setItem(row_spin, 7, QTableWidgetItem(self.sravnenie_name(self.ui.tableWidget.item(row_spin, 6).text(), self.ui.tableWidget.item(row_spin, 7).text())))
+            self.ui.tableWidget.setItem(row_spin, 7, QTableWidgetItem(self.sravnenie_name(kod, self.ui.tableWidget.item(row_spin, 7).text(), data[2])))
             self.ui.tableWidget.item(row_spin, 7).setFlags(QtCore.Qt.ItemFlag.ItemIsEnabled)
         for row_button in range(1, self.ui.tableWidget.rowCount()):
             self.copyRowButton = QtWidgets.QPushButton()
@@ -140,7 +169,7 @@ class WindowPrognozTablesSet(QtWidgets.QMainWindow):
         # Подключаем слоты к сигналам
         self.signals.success_signal.connect(self.show_success_message)
         self.signals.failed_signal.connect(self.show_error_message)
-        self.signals.error_DB_signal.connect(self.show_DB_error_message)
+        self.signals.crit_failed_signal.connect(self.show_crit_error_message)
 
 
     def on_cell_changed(self, row, col):
@@ -179,16 +208,10 @@ class WindowPrognozTablesSet(QtWidgets.QMainWindow):
         start_date = self.periodDay[0].toString('yyyy-MM-dd')
         end_date = self.periodDay[1].toString('yyyy-MM-dd')
         matrix_table_prognoz = []
+        points_index = 0
         # Проход по каждому столбцу начиная с начала названия ТТ
         for column_index in range(9, self.ui.tableWidget.columnCount()):
-            if self.ui.tableWidget.horizontalHeaderItem(column_index).text() == 'Крытый\nрынок':
-                column_name = 'Крытый рынок'
-            elif self.ui.tableWidget.horizontalHeaderItem(column_index).text() == 'Усть-Курдю\nмская':
-                column_name = 'Усть-Курдюмская'
-            elif self.ui.tableWidget.horizontalHeaderItem(column_index).text() == 'Фридриха\n11':
-                column_name = 'Фридриха 11'
-            else:
-                column_name = self.ui.tableWidget.horizontalHeaderItem(column_index).text().replace('\n', '')
+            column_name = self.points[points_index]
             # Проход по каждой строке для текущего столбца
             for row_index in range(1, self.ui.tableWidget.rowCount()):
                 row_data = [start_date, end_date, column_name]
@@ -241,8 +264,10 @@ class WindowPrognozTablesSet(QtWidgets.QMainWindow):
                 row_data.append(author)
                 # Добавление строки в матрицу
                 matrix_table_prognoz.append(row_data)
-        save_result = self.database.save_prognoz(matrix_table_prognoz)
-        print(save_result)
+            points_index += 1
+        data_server = self.server_requests.post('save_prognoz', {matrix_table_prognoz})
+        if 'Критическая ошибка' in data_server['result']:
+            self.signals.crit_failed_signal.emit(data_server['result'])
         self.close()
 
 
@@ -321,6 +346,7 @@ class WindowPrognozTablesSet(QtWidgets.QMainWindow):
                 saveZnach[c][r] = saveZnach[c].pop(counter)
                 counter += 1
 
+
     def dialog_copy_row(self):
         dialog_copy = QtWidgets.QDialog()
         layout = QtWidgets.QVBoxLayout()
@@ -344,6 +370,7 @@ class WindowPrognozTablesSet(QtWidgets.QMainWindow):
         request = dialog_copy.exec()
         return request
 
+
     def handle_button_click(self, button_text, dialog_copy):
         if button_text == 'Новое блюдо':
             result = self.dialog_add_display_kvant_batch(kod='Введите код блюда', name='Введите наименование блюда', edit=True)
@@ -352,7 +379,7 @@ class WindowPrognozTablesSet(QtWidgets.QMainWindow):
             elif result == 'Отмена':
                 return
             else:
-                self.show_DB_error_message(result)
+                self.signals.failed_signal.emit(result)
         else:
             result = self.dialog_select_from_existing()
             if result == 'Успешно':
@@ -373,7 +400,7 @@ class WindowPrognozTablesSet(QtWidgets.QMainWindow):
             spisok_kods_dishes_in_table.append(self.ui.tableWidget.item(row, 6).text())
         spisok_names_dishes_in_DB = self.spisok_dishes(spisok_kods_dishes_in_table)
         if 'Ошибка' in spisok_names_dishes_in_DB:
-            self.show_DB_error_message(spisok_names_dishes_in_DB)
+            self.signals.failed_signal.emit(spisok_names_dishes_in_DB)
         else:
             spisok_names_dishe_combobox = QtWidgets.QComboBox(dialog)
             spisok_names_dishe_combobox.addItems(spisok_names_dishes_in_DB)
@@ -397,19 +424,32 @@ class WindowPrognozTablesSet(QtWidgets.QMainWindow):
                 self.name = spisok_names_dishe_combobox.currentText()
                 return 'Успешно'
 
+
     def poisk_kod_dishe_in_DB_po_name(self, name):
-        result = self.database.poisk_kod_dishe_in_DB(name)
-        return result
+        data_server = self.server_requests.post('poisk_kod_dishe_in_DB', {'name': name})
+        if 'Критическая ошибка' in data_server['result']:
+            self.signals.crit_failed_signal.emit(data_server['result'])
+        return data_server['result']
+
 
     def spisok_dishes(self, spisok_kods_dishes_in_table):
-        result = self.database.spisok_names_dishes_in_DB(spisok_kods_dishes_in_table)
-        return result
+        data_server = self.server_requests.post('spisok_names_dishes_in_DB', {'spisok_kods_dishes_in_table': spisok_kods_dishes_in_table})
+        if 'Критическая ошибка' in data_server['result']:
+            self.signals.crit_failed_signal.emit(data_server['result'])
+        return data_server['result']
 
 
-    def sravnenie_name(self, kod, name):
-        result = self.database.poisk_data_tovar(kod)
-        if result[0][2] != name:
-            return self.dialog_select_name(kod, name, result[0][2])
+    # def sravnenie_name(self, kod, name):
+    #     data_server = self.server_requests.post('poisk_data_tovar', {'kod': kod})
+    #     if 'Критическая ошибка' in data_server['result']:
+    #         self.signals.crit_failed_signal.emit(data_server['result'])
+    #     if data_server['result'][0][2] != name:
+    #         return self.dialog_select_name(kod, name, data_server['result'][0][2])
+    #     return name
+
+    def sravnenie_name(self, kod, name, server_name):
+        if server_name != name:
+            return self.dialog_select_name(kod, name, server_name)
         return name
 
 
@@ -447,28 +487,41 @@ class WindowPrognozTablesSet(QtWidgets.QMainWindow):
         if request == 0:
             return name_DB
         else:
-            result = self.database.update_name_dishe(kod, name_excel)
-            if "успешно изменено" in result:
+            data_server = self.server_requests.post('update_name_dishe', {'kod': kod, 'name_excel': name_excel})
+            if 'Критическая ошибка' in data_server['result']:
+                self.signals.crit_failed_signal.emit(data_server['result'])
+            if "успешно изменено" in data_server['result']:
                 return name_excel
             else:
-                self.show_DB_error_message(result)
+                self.signals.failed_signal.emit(data_server['result'])
                 return name_DB
 
+
     # Поиск кода в базе данных
-    def poisk_display_kvant_batch(self, kod, name):
-        result = self.database.poisk_data_tovar(kod)
-        if not result:
-            result_request = self.dialog_add_display_kvant_batch(kod, name, edit=False)
-            if result_request == 'Отмена':
-                return 'Отмена'
-            elif result_request == 'Товар успешно зарегистрирован':
-                result = self.database.poisk_data_tovar(kod)
-                return result[0]
-            elif 'Ошибка' in result_request:
-                self.signals.error_DB_signal.emit(result_request)
-                return 'Отмена'
-        else:
-            return result[0]
+    def poisk_display_kvant_batch(self, kods):
+        # data_server = self.server_requests.post('poisk_data_tovar', {'kod': kod})
+        # if 'Критическая ошибка' in data_server['result']:
+        #     self.signals.crit_failed_signal.emit(data_server['result'])
+        # if not data_server['result']:
+        #     result_request = self.dialog_add_display_kvant_batch(kod, name, edit=False)
+        #     if result_request == 'Отмена':
+        #         return 'Отмена'
+        #     elif result_request == 'Товар успешно зарегистрирован':
+        #         data_server = self.server_requests.post('poisk_data_tovar', {'kod': kod})
+        #         if 'Критическая ошибка' in data_server['result']:
+        #             self.signals.crit_failed_signal.emit(data_server['result'])
+        #         return data_server['result'][0]
+        #     elif 'Ошибка' in result_request:
+        #         self.signals.failed_signal.emit(result_request)
+        #         return 'Отмена'
+        # else:
+        #     return data_server['result'][0]
+        data_server = self.server_requests.post('poisk_data_tovar', {'kods': kods})
+        if 'Критическая ошибка' in data_server['results']:
+            self.signals.crit_failed_signal.emit(data_server['results'])
+        print(data_server['results'])
+        kod_data = {item[1]: item for sublist in data_server['results'] for item in sublist}  # Создаем словарь для быстрого доступа
+        return kod_data
 
 
     def dialog_add_display_kvant_batch(self, kod, name, edit):
@@ -502,7 +555,10 @@ class WindowPrognozTablesSet(QtWidgets.QMainWindow):
             name_line_edit.setReadOnly(True)
         layout.addWidget(QtWidgets.QLabel('Выберите категорию:'))
         layout.addWidget(category_combobox)
-        category_combobox.addItems(self.database.get_spisok_category_in_DB())
+        data_server = self.server_requests.post('get_spisok_category_in_DB')
+        if 'Критическая ошибка' in data_server['result']:
+            self.signals.crit_failed_signal.emit(data_server['result'])
+        category_combobox.addItems(data_server['result'])
         category_combobox.wheelEvent = lambda event: None
         category_combobox.setCurrentText('Выпечка пекарни')
         layout.addWidget(QtWidgets.QLabel('Выкладка:'))
@@ -535,7 +591,10 @@ class WindowPrognozTablesSet(QtWidgets.QMainWindow):
             kvant = kvant_line_edit.text()
             batch = batch_line_edit.text()
             koeff_ice_sklad = koeff_ice_sklad_line_edit.text()
-            otvet_DB = self.database.insert_data_tovar(kod, name, category, display, kvant, batch, koeff_ice_sklad)
+            data_server = self.server_requests.post('insert_data_tovar', {'kod': kod, 'name': name, 'category': category, 'display': display, 'kvant': kvant, 'batch': batch, 'koeff_ice_sklad': koeff_ice_sklad})
+            if 'Критическая ошибка' in data_server['result']:
+                self.signals.crit_failed_signal.emit(data_server['result'])
+            otvet_DB = data_server['result']
             self.kod = kod
             self.name = name
         return otvet_DB
@@ -544,13 +603,16 @@ class WindowPrognozTablesSet(QtWidgets.QMainWindow):
     def show_success_message(self, message):
         pass
 
+
     def show_error_message(self, message):
         # Отображаем сообщение об ошибке
         QtWidgets.QMessageBox.information(self, "Ошибка", message)
 
-    def show_DB_error_message(self, message):
-        # Отображаем сообщение об ошибке
-        QtWidgets.QMessageBox.information(self, "Ошибка", message)
+
+    def show_crit_error_message(self, message):
+        QtWidgets.QMessageBox.information(self, "Критическая ошибка", message)
+        sys.exit()
+
 
     def closeEvent(self, event):
         self.session.set_work_date(
