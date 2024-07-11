@@ -1,10 +1,12 @@
 from PyQt6 import QtWidgets, QtGui, QtCore
-from PyQt6.QtWidgets import QTableWidgetItem, QInputDialog, QMessageBox
+from PyQt6.QtWidgets import QTableWidgetItem
 from data.ui.mini_table_window import Ui_mini_table_window
 from data.signals import Signals
+from data.server_requests import ServerRequests
+from data.add_logs import add_log
 import data.windows.windows_logistics
 from data.active_session import Session
-import datetime
+import sys
 
 class WindowKonditerskie(QtWidgets.QMainWindow):
     def __init__(self):
@@ -12,13 +14,14 @@ class WindowKonditerskie(QtWidgets.QMainWindow):
         self.ui = Ui_mini_table_window()
         self.ui.setupUi(self)
         self.signals = Signals()
+        self.server_requests = ServerRequests()
         self.session = Session.get_instance()  # Получение экземпляра класса Session
         self.ui.btn_back.clicked.connect(self.show_windowLogistik)
         self.ui.label_windowName.setText('Список кондитерских')
         # Подключаем слоты к сигналам
         self.signals.success_signal.connect(self.show_success_message)
         self.signals.failed_signal.connect(self.show_error_message)
-        self.signals.error_DB_signal.connect(self.show_error_message)
+        self.signals.crit_failed_signal.connect(self.show_crit_error_message)
         # Устанавливаем иконку
         icon = QtGui.QIcon()
         icon.addPixmap(QtGui.QPixmap("data/images/icon.ico"), QtGui.QIcon.Mode.Normal, QtGui.QIcon.State.Off)
@@ -186,10 +189,12 @@ class WindowKonditerskie(QtWidgets.QMainWindow):
 
 
     def add_data_in_table(self):
-        result = self.database.get_konditerskie()
-        if len(result) >= 1:
-            if isinstance(result, list):
-                for row in range(len(result)):
+        data_server = self.server_requests.post('get_konditerskie')
+        if 'Критическая ошибка' in data_server['result']:
+            self.signals.crit_failed_signal.emit(data_server['result'])
+        if len(data_server['result']) >= 1:
+            if isinstance(data_server['result'], list):
+                for row in range(len(data_server['result'])):
                     font = QtGui.QFont()
                     font.setFamily("Trebuchet MS")
                     font.setBold(False)
@@ -271,40 +276,43 @@ class WindowKonditerskie(QtWidgets.QMainWindow):
                     self.listType_table = ['Дисконт', 'Магазин']
                     self.line_type_table.addItems(self.listType_table)
                     self.line_type_table.wheelEvent = lambda event: None
-                    self.ui.tableWidget.setItem(row, 0, QTableWidgetItem(result[row][1]))
+                    self.ui.tableWidget.setItem(row, 0, QTableWidgetItem(data_server['result'][row][1]))
                     self.ui.tableWidget.setCellWidget(row, 1, self.line_type_table)
-                    self.ui.tableWidget.cellWidget(row, 1).setCurrentIndex(result[row][2])
+                    self.ui.tableWidget.cellWidget(row, 1).setCurrentIndex(data_server['result'][row][2])
                     self.ui.tableWidget.setCellWidget(row, 2, self.line_combo_yes_no_bakery)
-                    self.ui.tableWidget.cellWidget(row, 2).setCurrentIndex(result[row][3])
+                    self.ui.tableWidget.cellWidget(row, 2).setCurrentIndex(data_server['result'][row][3])
                     self.ui.tableWidget.setCellWidget(row, 3, self.line_combo_bakery_store)
-                    self.ui.tableWidget.cellWidget(row, 3).setCurrentIndex(result[row][9])
+                    self.ui.tableWidget.cellWidget(row, 3).setCurrentIndex(data_server['result'][row][9])
                     self.ui.tableWidget.setCellWidget(row, 4, self.line_combo_yes_no_ice_sklad)
-                    self.ui.tableWidget.cellWidget(row, 4).setCurrentIndex(result[row][4])
+                    self.ui.tableWidget.cellWidget(row, 4).setCurrentIndex(data_server['result'][row][4])
                     self.ui.tableWidget.setCellWidget(row, 5, self.line_combo_yes_no_vhod_group)
-                    self.ui.tableWidget.cellWidget(row, 5).setCurrentIndex(result[row][5])
+                    self.ui.tableWidget.cellWidget(row, 5).setCurrentIndex(data_server['result'][row][5])
                     self.ui.tableWidget.setCellWidget(row, 6, self.line_combo_yes_no_tualet)
-                    self.ui.tableWidget.cellWidget(row, 6).setCurrentIndex(result[row][6])
+                    self.ui.tableWidget.cellWidget(row, 6).setCurrentIndex(data_server['result'][row][6])
                     self.ui.tableWidget.setCellWidget(row, 7, self.line_combo_yes_no_tables)
-                    self.ui.tableWidget.cellWidget(row, 7).setCurrentIndex(result[row][7])
+                    self.ui.tableWidget.cellWidget(row, 7).setCurrentIndex(data_server['result'][row][7])
                     self.ui.tableWidget.setCellWidget(row, 8, self.line_combo_yes_no_enable)
-                    self.ui.tableWidget.cellWidget(row, 8).setCurrentIndex(result[row][8])
+                    self.ui.tableWidget.cellWidget(row, 8).setCurrentIndex(data_server['result'][row][8])
                     self.ui.tableWidget.setCellWidget(row, 9, self.button_save_changes)
                     self.ui.tableWidget.cellWidget(row, 9).setText('Сохранить')
                     self.ui.tableWidget.cellWidget(row, 9).setStyleSheet(open('data/css/QPushButton.qss').read())
                     self.ui.tableWidget.cellWidget(row, 9).clicked.connect(self.update_konditerskay)
             else:
-                self.signals.error_DB_signal.emit(result)
+                self.signals.failed_signal.emit(data_server['result'])
         else:
             self.signals.failed_signal.emit('Кондитерские не найдены!')
 
 
     def get_count_rows(self):
-        count_rows = self.database.count_row_in_DB_konditerskie()
-        if isinstance(count_rows, int):
-            return count_rows
+        data_server = self.server_requests.post('count_row_in_DB_konditerskie')
+        if isinstance(data_server['result'], int):
+            return data_server['result']
         else:
-            self.signals.failed_signal.emit(count_rows)
-            return 0
+            if 'Критическая ошибка' in data_server['result']:
+                self.signals.crit_failed_signal.emit(data_server['result'])
+            else:
+                self.signals.failed_signal.emit(data_server['result'])
+                return 0
 
 
     def register_konditerskay(self):
@@ -332,19 +340,17 @@ class WindowKonditerskie(QtWidgets.QMainWindow):
                 bakery_store = 1
         else:
             konditerskay_type = 0
-
         if len(konditerskay_name) == 0:
             self.signals.failed_signal.emit("Введите название кондитерской")
         else:
             # Выполняем регистрацию в базе данных и отправляем соответствующий сигнал
-            result = self.database.register_konditerskay(konditerskay_name, konditerskay_type, bakery, ice_sklad, vhod_group, tualet, tables, bakery_store)
-            if "успешно зарегистрирована" in result:
-                self.signals.success_signal.emit(result)
+            data_server = self.server_requests.post('register_konditerskay', {'konditerskay_name': konditerskay_name, 'konditerskay_type': konditerskay_type, 'bakery': bakery, 'ice_sklad': ice_sklad, 'vhod_group': vhod_group, 'tualet': tualet, 'tables': tables, 'bakery_store': bakery_store})
+            if 'Критическая ошибка' in data_server['result']:
+                self.signals.crit_failed_signal.emit(data_server['result'])
+            elif "успешно зарегистрирована" in data_server['result']:
+                self.signals.success_signal.emit(data_server['result'])
             else:
-                if 'Ошибка работы' in result:
-                    self.signals.error_DB_signal.emit(result)
-                else:
-                    self.signals.failed_signal.emit(result)
+                self.signals.failed_signal.emit(data_server['result'])
 
 
     def show_windowLogistik(self):
@@ -367,14 +373,13 @@ class WindowKonditerskie(QtWidgets.QMainWindow):
         konditerskay_tualet = self.ui.tableWidget.cellWidget(index.row(), 6).currentIndex()
         konditerskay_tables = self.ui.tableWidget.cellWidget(index.row(), 7).currentIndex()
         konditerskay_enable = self.ui.tableWidget.cellWidget(index.row(), 8).currentIndex()
-        result = self.database.update_konditerskay_data(konditerskay_name, konditerskay_type, konditerskay_bakery, konditerskay_ice_sklad, konditerskay_vhod_group, konditerskay_tualet, konditerskay_tables, konditerskay_enable, konditerskay_bakery_store)
-        if "успешно изменены" in result:
-            self.signals.success_signal.emit(result)
+        data_server = self.server_requests.post('update_konditerskay_data', {'konditerskay_name': konditerskay_name, 'konditerskay_type': konditerskay_type, 'konditerskay_bakery': konditerskay_bakery, 'konditerskay_ice_sklad': konditerskay_ice_sklad, 'konditerskay_vhod_group': konditerskay_vhod_group, 'konditerskay_tualet': konditerskay_tualet, 'konditerskay_tables': konditerskay_tables, 'konditerskay_enable': konditerskay_enable, 'konditerskay_bakery_store': konditerskay_bakery_store})
+        if 'Критическая ошибка' in data_server['result']:
+            self.signals.crit_failed_signal.emit(data_server['result'])
+        elif "успешно изменены" in data_server['result']:
+            self.signals.success_signal.emit(data_server['result'])
         else:
-            if 'Ошибка работы' in result:
-                self.signals.error_DB_signal.emit(result)
-            else:
-                self.signals.failed_signal.emit(result)
+            self.signals.failed_signal.emit(data_server['result'])
             return
 
     def show_success_message(self, message):
@@ -390,21 +395,19 @@ class WindowKonditerskie(QtWidgets.QMainWindow):
         # Отображаем сообщение об ошибке в БД
         QtWidgets.QMessageBox.information(self, "Ошибка", message)
 
-
-    def show_DB_error_message(self, message):
-        # Отображаем сообщение об ошибке
-        QtWidgets.QMessageBox.information(self, "Ошибка", message)
+    def show_crit_error_message(self, message):
+        QtWidgets.QMessageBox.information(self, "Критическая ошибка", message)
+        sys.exit()
 
 
     def closeEvent(self, event):
         if event.spontaneous():
-            username = self.session.get_username()  # Получение имени пользователя из экземпляра класса Session
-            logs_result = self.database.add_log(datetime.datetime.now().date(), datetime.datetime.now().time(),
-                                            f"Пользователь {username} вышел из системы.")
-            if "Лог записан" in logs_result:
-                self.signals.success_signal.emit(logs_result)
-            elif 'Ошибка работы' in logs_result:
-                self.signals.error_DB_signal.emit(logs_result)
+            logs_result = add_log(f"Пользователь {self.session.get_username()} вышел из системы.")
+            if "Лог записан" in logs_result['result']:
+                self.signals.success_signal.emit(logs_result['result'])
+                self.close()
+            elif 'Критическая ошибка' in logs_result['result']:
+                self.signals.crit_failed_signal.emit(logs_result['result'])
             else:
-                self.signals.failed_signal.emit(logs_result)
+                self.signals.failed_signal.emit(logs_result['result'])
         event.accept()

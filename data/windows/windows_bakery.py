@@ -1,5 +1,6 @@
 from datetime import datetime
 import os
+import sys
 import pandas as pd
 import shutil
 from math import ceil
@@ -9,6 +10,8 @@ from PyQt6.QtWidgets import QFileDialog, QMessageBox
 from data.ui.bakery import Ui_WindowBakery
 from data.signals import Signals
 from data.active_session import Session
+from data.server_requests import ServerRequests
+from data.add_logs import add_log
 
 import data.windows.windows_autoorders
 import data.windows.windows_prognoz_set
@@ -30,6 +33,7 @@ class WindowBakery(QtWidgets.QMainWindow):
         self.ui = Ui_WindowBakery()
         self.ui.setupUi(self)
         self.signals = Signals()
+        self.server_requests = ServerRequests()
         self.session = Session.get_instance()  # Получение экземпляра класса Session
         icon = QtGui.QIcon()
         icon.addPixmap(QtGui.QPixmap("data/images/icon.png"), QtGui.QIcon.Mode.Normal, QtGui.QIcon.State.Off)
@@ -69,17 +73,25 @@ class WindowBakery(QtWidgets.QMainWindow):
         # self.ui.btn_download_Normativ.clicked.connect(self.saveFileDialogNormativ)
         # self.ui.btn_download_Layout.clicked.connect(self.saveFileDialogLayout)
 
-        # Проверям наличие готовых автозаказов в БД
+        # Проверяем наличие готовых автозаказов в БД
         self.check_prognoz()
         self.check_koeff_day_week()
         self.check_normativ()
 
         self.ui.formLayoutWidget.layout().setAlignment(QtCore.Qt.AlignmentFlag.AlignTop)
         checkbox_list = []
-        data_konditerskie = self.database.get_konditerskie()
-        for point in range(0, len(data_konditerskie)):
-            if data_konditerskie[point][2] == 1 & data_konditerskie[point][9] == 1 & data_konditerskie[point][8] == 1:
-                checkbox_list.append(data_konditerskie[point][1])
+        data_server = self.server_requests.post('get_konditerskie')
+        if 'Критическая ошибка' in data_server['result']:
+            self.signals.crit_failed_signal.emit(data_server['result'])
+        if len(data_server['result']) >= 1:
+            if isinstance(data_server['result'], list):
+                for point in range(0, len(data_server['result'])):
+                    if data_server['result'][point][2] == 1 & data_server['result'][point][9] == 1 & data_server['result'][point][8] == 1:
+                        checkbox_list.append(data_server['result'][point][1])
+            else:
+                self.signals.failed_signal.emit(data_server['result'])
+        else:
+            self.signals.failed_signal.emit('Кондитерские не найдены!')
         checkbox_list.sort()
         sorted_checkbox_list = []
         for check in checkbox_list:
@@ -100,7 +112,7 @@ class WindowBakery(QtWidgets.QMainWindow):
         # Подключаем слоты к сигналам
         self.signals.success_signal.connect(self.show_success_message)
         self.signals.failed_signal.connect(self.show_error_message)
-        self.signals.error_DB_signal.connect(self.show_DB_error_message)
+        self.signals.crit_failed_signal.connect(self.show_crit_error_message)
 
 
     # Получаем список кондитерских и устанавливаем чек-боксы
@@ -108,7 +120,7 @@ class WindowBakery(QtWidgets.QMainWindow):
         for index in range(0, self.ui.formLayoutWidget.layout().count()):
             self.ui.formLayoutWidget.layout().itemAt(index).widget().setChecked(False)
         if self.check_prognoz() == 1:
-            checkbox_list_checked = self.get_spisok_konditerskih_in_DB(Queries.get_spisok_konditerskih_in_prognoz_in_DB)
+            checkbox_list_checked = self.get_spisok_konditerskih_in_DB('get_spisok_konditerskih_in_prognoz_in_DB')
             sorted_checkbox_list = []
             for index in range(0, self.ui.formLayoutWidget.layout().count()):
                 sorted_checkbox_list.append(self.ui.formLayoutWidget.layout().itemAt(index).widget().text())
@@ -116,7 +128,7 @@ class WindowBakery(QtWidgets.QMainWindow):
                 if checkbox in sorted_checkbox_list:
                     self.ui.formLayoutWidget.layout().itemAt(sorted_checkbox_list.index(checkbox)).widget().setChecked(True)
         elif self.check_koeff_day_week() == 1:
-            checkbox_list_checked = self.get_spisok_konditerskih_in_DB(Queries.get_spisok_konditerskih_in_koeff_day_week_in_DB)
+            checkbox_list_checked = self.get_spisok_konditerskih_in_DB('get_spisok_konditerskih_in_koeff_day_week_in_DB')
             sorted_checkbox_list = []
             for index in range(0, self.ui.formLayoutWidget.layout().count()):
                 sorted_checkbox_list.append(self.ui.formLayoutWidget.layout().itemAt(index).widget().text())
@@ -194,7 +206,7 @@ class WindowBakery(QtWidgets.QMainWindow):
             point_in_OLAP = wb_OLAP_prodagi.columns.tolist()
             del point_in_OLAP[0:2]
             points_check = self.ui.formLayoutWidget.findChildren(QtWidgets.QCheckBox)
-            result_koeff_day_week = self.check_data_in_DB(Queries.get_count_row_koeff_day_week_in_DB)
+            result_koeff_day_week = self.check_data_in_DB('get_count_row_koeff_day_week_in_DB')
             if result_koeff_day_week == 0:
                 points = []
                 for i in range(len(points_check)):
@@ -206,7 +218,7 @@ class WindowBakery(QtWidgets.QMainWindow):
                         else:
                             points.append(points_check[i].text())
             else:
-                points_in_DB = self.get_spisok_konditerskih_in_DB(Queries.get_spisok_konditerskih_in_koeff_day_week_in_DB)
+                points_in_DB = self.get_spisok_konditerskih_in_DB('get_spisok_konditerskih_in_koeff_day_week_in_DB')
                 for i in range(len(points_in_DB)):
                     if not points_in_DB[i] in point_in_OLAP:
                         self.signals.failed_signal.emit(f"В OLAP-отчете отсутствует кондитерская {points_in_DB[i]}")
@@ -284,7 +296,7 @@ class WindowBakery(QtWidgets.QMainWindow):
         point_in_OLAP = wb_OLAP_dayWeek.columns.tolist()
         del point_in_OLAP[0:1]
         points_check = self.ui.formLayoutWidget.findChildren(QtWidgets.QCheckBox)
-        result_prognoz = self.check_data_in_DB(Queries.get_count_row_prognoz_in_DB())
+        result_prognoz = self.check_data_in_DB('get_count_row_prognoz_in_DB')
         if result_prognoz == 0:
             points = []
             for i in range(len(points_check)):
@@ -295,7 +307,7 @@ class WindowBakery(QtWidgets.QMainWindow):
                     else:
                         points.append(points_check[i].text())
         else:
-            points_in_DB = self.get_spisok_konditerskih_in_DB(Queries.get_spisok_konditerskih_in_prognoz_in_DB)
+            points_in_DB = self.get_spisok_konditerskih_in_DB('get_spisok_konditerskih_in_prognoz_in_DB')
             for i in range(len(points_in_DB)):
                 if not points_in_DB[i] in point_in_OLAP:
                     self.signals.failed_signal.emit(f"В OLAP-отчете отсутствует кондитерская {points_in_DB[i]}")
@@ -308,7 +320,7 @@ class WindowBakery(QtWidgets.QMainWindow):
 
 
     def check_prognoz(self):
-        result_prognoz = self.check_data_in_DB(Queries.get_count_row_prognoz_in_DB)
+        result_prognoz = self.check_data_in_DB('get_count_row_prognoz_in_DB')
         if result_prognoz == 0:
             self.ui.btn_set_prognoz.setEnabled(True)
             self.ui.btn_prosmotr_prognoz.setEnabled(False)
@@ -326,7 +338,7 @@ class WindowBakery(QtWidgets.QMainWindow):
 
 
     def check_koeff_day_week(self):
-        result_koeff_day_week = self.check_data_in_DB(Queries.get_count_row_koeff_day_week_in_DB)
+        result_koeff_day_week = self.check_data_in_DB('get_count_row_koeff_day_week_in_DB')
         if result_koeff_day_week == 0:
             self.ui.btn_set_dayWeek.setEnabled(True)
             self.ui.btn_prosmotr_dayWeek.setEnabled(False)
@@ -344,7 +356,7 @@ class WindowBakery(QtWidgets.QMainWindow):
 
 
     def check_normativ(self):
-        result_normativ = self.check_data_in_DB(Queries.get_count_row_normativ_in_DB)
+        result_normativ = self.check_data_in_DB('get_count_row_normativ_in_DB')
         if result_normativ == 0:
             self.ui.btn_edit_normativ.setEnabled(False)
             self.ui.btn_download_normativ.setEnabled(False)
@@ -361,9 +373,11 @@ class WindowBakery(QtWidgets.QMainWindow):
     def check_data_in_DB(self, check_function_in_DB):
         start_date = self.periodDay[0].toString('yyyy-MM-dd')
         end_date = self.periodDay[1].toString('yyyy-MM-dd')
-        result_check = self.database.check_counts_row_in_DB(start_date, end_date, "Выпечка пекарни", check_function_in_DB)
-        if isinstance(result_check, int):
-            return result_check
+        data_server = self.server_requests.post('check_counts_row_in_DB', {'start_date': start_date, 'end_date': end_date, 'category': "Выпечка пекарни", 'check_function_in_DB': check_function_in_DB})
+        if isinstance(data_server['result'], int):
+            return data_server['result']
+        elif 'Критическая ошибка' in data_server['result']:
+            self.signals.crit_failed_signal.emit(data_server['result'])
         else:
             return 0
 
@@ -371,8 +385,10 @@ class WindowBakery(QtWidgets.QMainWindow):
     def get_spisok_konditerskih_in_DB(self, check_function_in_DB):
         start_date = self.periodDay[0].toString('yyyy-MM-dd')
         end_date = self.periodDay[1].toString('yyyy-MM-dd')
-        result_spisok = self.database.get_spisok_konditerskih_in_DB(start_date, end_date, "Выпечка пекарни", check_function_in_DB)
-        return result_spisok
+        data_server = self.server_requests.post('get_spisok_konditerskih_in_DB', {'start_date': start_date, 'end_date': end_date, 'category': "Выпечка пекарни", 'query_function_name': check_function_in_DB})
+        if 'Критическая ошибка' in data_server['result']:
+            self.signals.crit_failed_signal.emit(data_server['result'])
+        return data_server['result']
 
 
     # Закрываем окно настроек, открываем выбор раздела
@@ -394,9 +410,9 @@ class WindowBakery(QtWidgets.QMainWindow):
         QtWidgets.QMessageBox.information(self, "Ошибка", message)
 
 
-    def show_DB_error_message(self, message):
-        # Отображаем сообщение об ошибке
-        QtWidgets.QMessageBox.information(self, "Ошибка", message)
+    def show_crit_error_message(self, message):
+        QtWidgets.QMessageBox.information(self, "Критическая ошибка", message)
+        sys.exit()
 
 
     def prognoz_tables_view(self):
@@ -477,12 +493,13 @@ class WindowBakery(QtWidgets.QMainWindow):
     def prognoz_tables_delete(self):
         start_date = self.periodDay[0].toString('yyyy-MM-dd')
         end_date = self.periodDay[1].toString('yyyy-MM-dd')
-        result_delete = self.database.delete_prognoz(start_date, end_date, self.category)
-        print(result_delete)
+        data_server = self.server_requests.post('delete_prognoz', {'start_date': start_date, 'end_date': end_date, 'category': self.category})
+        if 'Критическая ошибка' in data_server['result']:
+            self.signals.crit_failed_signal.emit(data_server['result'])
         self.check_prognoz()
         self.check_normativ()
-    #
-    #
+
+
     def koeff_day_week_view(self):
         self.hide()
         periodDay = self.periodDay
@@ -659,3 +676,15 @@ class WindowBakery(QtWidgets.QMainWindow):
     #     self.setEnabled(True)
     #     self.ui.progressBar.hide()
     #     os.startfile(folderName)  # открытие папки
+
+    def closeEvent(self, event):
+        if event.spontaneous():
+            logs_result = add_log(f"Пользователь {self.session.get_username()} вышел из системы.")
+            if "Лог записан" in logs_result['result']:
+                self.signals.success_signal.emit(logs_result['result'])
+                self.close()
+            elif 'Критическая ошибка' in logs_result['result']:
+                self.signals.crit_failed_signal.emit(logs_result['result'])
+            else:
+                self.signals.failed_signal.emit(logs_result['result'])
+        event.accept()
