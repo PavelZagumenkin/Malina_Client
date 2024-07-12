@@ -74,9 +74,10 @@ class WindowBakery(QtWidgets.QMainWindow):
         # self.ui.btn_download_Layout.clicked.connect(self.saveFileDialogLayout)
 
         # Проверяем наличие готовых автозаказов в БД
-        self.check_prognoz()
-        self.check_koeff_day_week()
-        self.check_normativ()
+        self.check_all()
+        # self.check_prognoz()
+        # self.check_koeff_day_week()
+        # self.check_normativ()
 
         self.ui.formLayoutWidget.layout().setAlignment(QtCore.Qt.AlignmentFlag.AlignTop)
         checkbox_list = []
@@ -144,9 +145,10 @@ class WindowBakery(QtWidgets.QMainWindow):
     def set_end_day(self):
         self.ui.dateEdit_endDay.setDate(self.ui.dateEdit_startDay.date().addDays(6))
         self.periodDay = [self.ui.dateEdit_startDay.date(), self.ui.dateEdit_endDay.date()]
-        self.check_prognoz()
-        self.check_koeff_day_week()
-        self.check_normativ()
+        self.check_all()
+        # self.check_prognoz()
+        # self.check_koeff_day_week()
+        # self.check_normativ()
         self.install_check_box()
 
 
@@ -318,9 +320,9 @@ class WindowBakery(QtWidgets.QMainWindow):
         windows_koeff_day_week_set = data.windows.windows_koeff_day_week_set.WindowKoeffDayWeekSet(wb_OLAP_dayWeek, self.periodDay, points)
         windows_koeff_day_week_set.showMaximized()
 
-
-    def check_prognoz(self):
-        result_prognoz = self.check_data_in_DB('get_count_row_prognoz_in_DB')
+    def check_prognoz(self, result_prognoz=None):
+        if result_prognoz is None:
+            result_prognoz = self.get_data_for_function('get_count_row_prognoz_in_DB')
         if result_prognoz == 0:
             self.ui.btn_set_prognoz.setEnabled(True)
             self.ui.btn_prosmotr_prognoz.setEnabled(False)
@@ -328,17 +330,16 @@ class WindowBakery(QtWidgets.QMainWindow):
             self.ui.btn_delete_prognoz.setEnabled(False)
             self.ui.btn_set_normativ.setEnabled(False)
             self.ui.btn_download_layout.setEnabled(False)
-            return 0
         else:
             self.ui.btn_set_prognoz.setEnabled(False)
             self.ui.btn_prosmotr_prognoz.setEnabled(True)
             self.ui.btn_edit_prognoz.setEnabled(True)
             self.ui.btn_delete_prognoz.setEnabled(True)
-            return 1
+        return result_prognoz
 
-
-    def check_koeff_day_week(self):
-        result_koeff_day_week = self.check_data_in_DB('get_count_row_koeff_day_week_in_DB')
+    def check_koeff_day_week(self, result_koeff_day_week=None):
+        if result_koeff_day_week is None:
+            result_koeff_day_week = self.get_data_for_function('get_count_row_koeff_day_week_in_DB')
         if result_koeff_day_week == 0:
             self.ui.btn_set_dayWeek.setEnabled(True)
             self.ui.btn_prosmotr_dayWeek.setEnabled(False)
@@ -346,40 +347,121 @@ class WindowBakery(QtWidgets.QMainWindow):
             self.ui.btn_delete_dayWeek.setEnabled(False)
             self.ui.btn_download_layout.setEnabled(False)
             self.ui.btn_set_normativ.setEnabled(False)
-            return 0
         else:
             self.ui.btn_set_dayWeek.setEnabled(False)
             self.ui.btn_prosmotr_dayWeek.setEnabled(True)
             self.ui.btn_edit_dayWeek.setEnabled(True)
             self.ui.btn_delete_dayWeek.setEnabled(True)
-            return 1
+        return result_koeff_day_week
 
-
-    def check_normativ(self):
-        result_normativ = self.check_data_in_DB('get_count_row_normativ_in_DB')
+    def check_normativ(self, result_normativ=None):
+        if result_normativ is None:
+            result_normativ = self.get_data_for_function('get_count_row_normativ_in_DB')
         if result_normativ == 0:
             self.ui.btn_edit_normativ.setEnabled(False)
             self.ui.btn_download_normativ.setEnabled(False)
             self.ui.btn_delete_normativ.setEnabled(False)
-            return 0
         else:
             self.ui.btn_set_normativ.setEnabled(False)
             self.ui.btn_edit_normativ.setEnabled(True)
             self.ui.btn_download_normativ.setEnabled(True)
             self.ui.btn_delete_normativ.setEnabled(True)
-            return 1
+        return result_normativ
+
+    def check_all(self):
+        check_functions = [
+            'get_count_row_prognoz_in_DB',
+            'get_count_row_koeff_day_week_in_DB',
+            'get_count_row_normativ_in_DB'
+        ]
+        data_results = self.check_data_in_DB(check_functions)
+        self.check_prognoz(data_results.get('get_count_row_prognoz_in_DB'))
+        self.check_koeff_day_week(data_results.get('get_count_row_koeff_day_week_in_DB'))
+        self.check_normativ(data_results.get('get_count_row_normativ_in_DB'))
 
 
-    def check_data_in_DB(self, check_function_in_DB):
+    # def check_prognoz(self):
+    #     result_prognoz = self.check_data_in_DB('get_count_row_prognoz_in_DB')
+    #     if result_prognoz == 0:
+    #         self.ui.btn_set_prognoz.setEnabled(True)
+    #         self.ui.btn_prosmotr_prognoz.setEnabled(False)
+    #         self.ui.btn_edit_prognoz.setEnabled(False)
+    #         self.ui.btn_delete_prognoz.setEnabled(False)
+    #         self.ui.btn_set_normativ.setEnabled(False)
+    #         self.ui.btn_download_layout.setEnabled(False)
+    #         return 0
+    #     else:
+    #         self.ui.btn_set_prognoz.setEnabled(False)
+    #         self.ui.btn_prosmotr_prognoz.setEnabled(True)
+    #         self.ui.btn_edit_prognoz.setEnabled(True)
+    #         self.ui.btn_delete_prognoz.setEnabled(True)
+    #         return 1
+    #
+    #
+    # def check_koeff_day_week(self):
+    #     result_koeff_day_week = self.check_data_in_DB('get_count_row_koeff_day_week_in_DB')
+    #     if result_koeff_day_week == 0:
+    #         self.ui.btn_set_dayWeek.setEnabled(True)
+    #         self.ui.btn_prosmotr_dayWeek.setEnabled(False)
+    #         self.ui.btn_edit_dayWeek.setEnabled(False)
+    #         self.ui.btn_delete_dayWeek.setEnabled(False)
+    #         self.ui.btn_download_layout.setEnabled(False)
+    #         self.ui.btn_set_normativ.setEnabled(False)
+    #         return 0
+    #     else:
+    #         self.ui.btn_set_dayWeek.setEnabled(False)
+    #         self.ui.btn_prosmotr_dayWeek.setEnabled(True)
+    #         self.ui.btn_edit_dayWeek.setEnabled(True)
+    #         self.ui.btn_delete_dayWeek.setEnabled(True)
+    #         return 1
+    #
+    #
+    # def check_normativ(self):
+    #     result_normativ = self.check_data_in_DB('get_count_row_normativ_in_DB')
+    #     if result_normativ == 0:
+    #         self.ui.btn_edit_normativ.setEnabled(False)
+    #         self.ui.btn_download_normativ.setEnabled(False)
+    #         self.ui.btn_delete_normativ.setEnabled(False)
+    #         return 0
+    #     else:
+    #         self.ui.btn_set_normativ.setEnabled(False)
+    #         self.ui.btn_edit_normativ.setEnabled(True)
+    #         self.ui.btn_download_normativ.setEnabled(True)
+    #         self.ui.btn_delete_normativ.setEnabled(True)
+    #         return 1
+
+
+    # def check_data_in_DB(self, check_function_in_DB):
+    #     start_date = self.periodDay[0].toString('yyyy-MM-dd')
+    #     end_date = self.periodDay[1].toString('yyyy-MM-dd')
+    #     data_server = self.server_requests.post('check_counts_row_in_DB', {'start_date': start_date, 'end_date': end_date, 'category': "Выпечка пекарни", 'check_function_in_DB': check_function_in_DB})
+    #     if isinstance(data_server['result'], int):
+    #         return data_server['result']
+    #     elif 'Критическая ошибка' in data_server['result']:
+    #         self.signals.crit_failed_signal.emit(data_server['result'])
+    #     else:
+    #         return 0
+
+    def check_data_in_DB(self, check_functions_in_DB):
         start_date = self.periodDay[0].toString('yyyy-MM-dd')
         end_date = self.periodDay[1].toString('yyyy-MM-dd')
-        data_server = self.server_requests.post('check_counts_row_in_DB', {'start_date': start_date, 'end_date': end_date, 'category': "Выпечка пекарни", 'check_function_in_DB': check_function_in_DB})
-        if isinstance(data_server['result'], int):
-            return data_server['result']
+        data_server = self.server_requests.post('check_counts_rows_in_DB', {
+            'start_date': start_date,
+            'end_date': end_date,
+            'category': "Выпечка пекарни",
+            'check_functions_in_DB': check_functions_in_DB
+        })
+
+        if 'results' in data_server:
+            return data_server['results']
         elif 'Критическая ошибка' in data_server['result']:
             self.signals.crit_failed_signal.emit(data_server['result'])
         else:
-            return 0
+            return {func: 0 for func in check_functions_in_DB}
+
+    def get_data_for_function(self, function_name):
+        data_results = self.check_data_in_DB([function_name])
+        return data_results.get(function_name, 0)
 
 
     def get_spisok_konditerskih_in_DB(self, check_function_in_DB):
